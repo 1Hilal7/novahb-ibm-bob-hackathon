@@ -113,6 +113,16 @@ def route_developer(
 
 def _has_domain_match(developer: Developer, semantic_change: SemanticChange) -> bool:
     """Return True if any semantic domain matches developer expertise."""
+    # Data-model changes are a natural review boundary for schema and
+    # migration owners even when a generic detector reports the domain as
+    # "user-model" or "shared-core" rather than the literal word "schema".
+    data_model_domains = {"user-model", "shared-core", "database"}
+    schema_expertise = {"database", "schema", "migrations"}
+    if data_model_domains.intersection(semantic_change.domains) and schema_expertise.intersection(
+        developer.expertise
+    ):
+        return True
+
     for domain in semantic_change.domains:
         domain_lower = domain.lower()
         for exp in developer.expertise:
@@ -196,7 +206,7 @@ def _build_silent_reason(
 
 
 # ---------------------------------------------------------------------------
-# Route all developers
+# Route all developers (deterministic)
 # ---------------------------------------------------------------------------
 
 def route_all(
@@ -208,8 +218,126 @@ def route_all(
     """
     Produce a RoutingDecision for every developer.
     All 6 developers appear in output — SILENT decisions are explicit.
+
+    Strategy:
+    1. Run deterministic rule engine for all developers (always works)
+    2. If LLM is available, enrich ACTION/REVIEW_REQUIRED decisions with
+       Gemini-generated reasoning and recommended actions
     """
-    return [
+    decisions = [
         route_developer(dev, affected_modules, semantic_change, changed_files)
         for dev in developers
     ]
+
+    # Try to enrich non-SILENT decisions with LLM reasoning
+    enriched = _enrich_with_llm(decisions, developers, semantic_change, affected_modules)
+    return enriched
+
+
+# ---------------------------------------------------------------------------
+# LLM enrichment for routing decisions
+# ---------------------------------------------------------------------------
+
+_ROUTING_SYSTEM = (
+    "You are novaHB, a blast-radius analysis system. "
+    "You produce precise, developer-specific impact notifications for git commits. "
+    "Be direct, technical, and actionable. Use the developer's context."
+)
+
+_ROUTING_ENRICH_PROMPT = """A git commit was analyzed and routing decisions were made.
+Enrich the reasoning and recommended_action for each non-SILENT developer.
+
+Semantic change: {semantic_summary}
+Criticality: {criticality}
+Affected modules: {affected_modules}
+
+Developers needing enrichment:
+{developers_json}
+
+For each developer, respond with a JSON array (no markdown fences):
+[
+  {{
+    "developer_id": "<id>",
+    "reason": "<personalized, specific reason why this developer is affected — reference their actual task and files>",
+    "recommended_action": "<concrete step-by-step action they should take>"
+  }}
+]
+
+Be specific about their current task and files. Do not be generic.
+"""
+
+
+def _enrich_with_llm(
+    decisions: list[RoutingDecision],
+    developers: list[Developer],
+    semantic_change: SemanticChange,
+    affected_modules: list[AffectedModule],
+) -> list[RoutingDecision]:
+    """
+    Use Gemini to enrich reason and recommended_action for ACTION and
+    REVIEW_REQUIRED developers. SILENT decisions are left untouched.
+    Returns the (possibly enriched) decisions list.
+    """
+    from .llm import call_llm_json, is_llm_available
+    import json as _json
+
+    if not is_llm_available():
+        return decisions
+
+    # Only enrich non-SILENT decisions
+    non_silent = [d for d in decisions if d.decision != Decision.SILENT]
+    if not non_silent:
+        return decisions
+
+    dev_map = {d.id: d for d in developers}
+
+    # Build context payload for LLM
+    devs_payload = []
+    for decision in non_silent:
+        dev = dev_map.get(decision.developer_id)
+        if dev is None:
+            continue
+        devs_payload.append({
+            "developer_id": dev.id,
+            "name": dev.name,
+            "role": dev.role,
+            "decision": decision.decision.value,
+            "current_task": dev.current_task,
+            "current_task_files": dev.current_task_files,
+            "modules": dev.modules,
+            "expertise": dev.expertise,
+            "rule_engine_reason": decision.reason,
+        })
+
+    if not devs_payload:
+        return decisions
+
+    prompt = _ROUTING_ENRICH_PROMPT.format(
+        semantic_summary=semantic_change.summary,
+        criticality=semantic_change.criticality.value,
+        affected_modules=", ".join(
+            f"{m.module} ({m.status.value})" for m in affected_modules
+        ),
+        developers_json=_json.dumps(devs_payload, indent=2),
+    )
+
+    result = call_llm_json(prompt, system=_ROUTING_SYSTEM)
+    if not result or not isinstance(result, list):
+        return decisions
+
+    # Apply enrichments
+    enrichment_map = {item["developer_id"]: item for item in result if isinstance(item, dict)}
+    enriched_decisions = []
+    for decision in decisions:
+        enrichment = enrichment_map.get(decision.developer_id)
+        if enrichment and decision.decision != Decision.SILENT:
+            enriched_decisions.append(RoutingDecision(
+                developer_id=decision.developer_id,
+                decision=decision.decision,
+                reason=str(enrichment.get("reason", decision.reason)),
+                recommended_action=str(enrichment.get("recommended_action", decision.recommended_action or "")),
+            ))
+        else:
+            enriched_decisions.append(decision)
+
+    return enriched_decisions

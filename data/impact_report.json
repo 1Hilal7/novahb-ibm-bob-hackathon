@@ -1,0 +1,77 @@
+{
+  "commit": {
+    "id": "fafa0ce0",
+    "author": "Batuhan",
+    "summary": "feat: allow nullable user email"
+  },
+  "semantic_change": {
+    "summary": "Changes in: .gitignore, user.py",
+    "domains": [
+      "shared-core",
+      "user-model"
+    ],
+    "criticality": "high",
+    "evidence": [
+      ".gitignore",
+      "sample_repo/shared/user.py"
+    ]
+  },
+  "affected_modules": [
+    {
+      "module": "billing",
+      "status": "affected",
+      "reason": "Module uses User.email without null-guard — nullable email will cause runtime error",
+      "evidence": "sample_repo/billing/"
+    },
+    {
+      "module": "notifications",
+      "status": "safe",
+      "reason": "Module already guards against nullable email — no action required",
+      "evidence": "sample_repo/notifications/"
+    },
+    {
+      "module": "auth",
+      "status": "safe",
+      "reason": "Module already guards against nullable email — no action required",
+      "evidence": "sample_repo/auth/"
+    }
+  ],
+  "routing": [
+    {
+      "developer_id": "hilal",
+      "decision": "SILENT",
+      "reason": "Hilal's module(s) (auth) depend on User but already handle nullable email safely — no code change required.",
+      "recommended_action": null
+    },
+    {
+      "developer_id": "batuhan",
+      "decision": "ACTION",
+      "reason": "Batuhan is actively working on billing/invoice.py which depends on User.email, and the module has unsafe email usage without null-guard. The nullable email change will cause a runtime error in the current task.",
+      "recommended_action": "Add explicit missing-email handling to invoice delivery and update invoice tests."
+    },
+    {
+      "developer_id": "ayse",
+      "decision": "SILENT",
+      "reason": "Ayşe's module(s) (notifications) depend on User but already handle nullable email safely — no code change required.",
+      "recommended_action": null
+    },
+    {
+      "developer_id": "emre",
+      "decision": "REVIEW_REQUIRED",
+      "reason": "The shared User schema changed (required → optional email) and Emre is responsible for schema migration and backward compatibility. Expert review is required.",
+      "recommended_action": "Review backward compatibility, migration behavior, and persisted user records."
+    },
+    {
+      "developer_id": "selin",
+      "decision": "SILENT",
+      "reason": "Selin's module(s) (auth) depend on User but already handle nullable email safely — no code change required.",
+      "recommended_action": null
+    },
+    {
+      "developer_id": "mert",
+      "decision": "SILENT",
+      "reason": "No modules owned by Mert are affected by this change. Current task (Add deployment health checks and service monitoring...) has no dependency on the User.email field.",
+      "recommended_action": null
+    }
+  ]
+}

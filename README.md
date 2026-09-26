@@ -136,6 +136,46 @@ novahb-ibm-bob-hackathon/
 | `POST` | `/analyze` | Run full analysis pipeline on HEAD |
 | `GET` | `/impact/latest` | Latest generated impact report |
 | `POST` | `/review/{developer_id}` | Expert approve/request_changes |
+| `GET` | `/notify/{developer_id}` | Get notification package with 4 interactive questions |
+| `POST` | `/notify/{developer_id}/ask` | Developer selects a question and receives an answer |
+
+---
+
+## Interactive Notification System
+
+When a developer is notified about a commit's impact, they receive a
+**notification package** with 4 context-aware questions tailored to their decision level.
+
+### Flow
+
+```
+POST /analyze
+  → routing engine assigns ACTION / REVIEW_REQUIRED / SILENT
+
+GET /notify/{developer_id}
+  → developer receives their decision + 4 interactive questions
+
+POST /notify/{developer_id}/ask
+  {"option_id": "<selected_question>"}
+  → system returns a focused, actionable answer
+```
+
+### Question Matrix
+
+| Decision | option_id | Question |
+|----------|-----------|----------|
+| **ACTION** | `summarize_commit` | 📋 Bu commiti bana özetle |
+| **ACTION** | `how_am_i_affected` | 🎯 Bu commit beni nasıl etkiler? |
+| **ACTION** | `what_should_i_do` | 🔧 Ne yapmam gerekiyor? |
+| **ACTION** | `is_my_pr_blocked` | 🚦 Mevcut PR'ım etkileniyor mu? |
+| **REVIEW_REQUIRED** | `summarize_commit` | 📋 Bu commiti bana özetle |
+| **REVIEW_REQUIRED** | `how_am_i_affected` | 🎯 Bu commit beni nasıl etkiler? |
+| **REVIEW_REQUIRED** | `what_should_i_do` | 🔧 Ne yapmam gerekiyor? |
+| **REVIEW_REQUIRED** | `what_breaks_if_merged` | 💥 Merge edilirse ne bozulur? |
+| **SILENT** | `summarize_commit` | 📋 Bu commiti bana özetle |
+| **SILENT** | `how_am_i_affected` | 🎯 Bu commit beni nasıl etkiler? |
+| **SILENT** | `should_i_do_anything` | ✅ Yapmam gereken bir şey var mı? |
+| **SILENT** | `who_is_handling_this` | 👥 Bu değişikliği kim handle ediyor? |
 
 ---
 

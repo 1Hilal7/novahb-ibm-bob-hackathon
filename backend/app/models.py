@@ -146,3 +146,52 @@ class ReviewResult(BaseModel):
 
 class AnalyzeRequest(BaseModel):
     commit_id: Optional[str] = None  # if None, use HEAD
+
+
+# ---------------------------------------------------------------------------
+# Interactive notification system
+# ---------------------------------------------------------------------------
+
+class NotificationQuestion(BaseModel):
+    """
+    A single interactive question a developer can select from their
+    notification package. Includes both the label shown to the user
+    and the pre-computed answer from the system.
+    """
+    option_id: str             # e.g. "summarize_commit", "how_am_i_affected"
+    label: str                 # short question shown to developer, e.g. "📋 Bu commiti özetle"
+    answer: str                # full markdown answer from the system
+
+
+class NotificationPackage(BaseModel):
+    """
+    The full notification payload sent to a developer.
+    Contains their routing decision + 4 interactive questions.
+    Developer picks one question → system returns the answer.
+    """
+    developer_id: str
+    decision: Decision
+    reason: str
+    recommended_action: Optional[str] = None
+    commit_id: str
+    commit_summary: str
+    semantic_summary: str
+    questions: list[NotificationQuestion]   # always 4 items
+
+
+class AskRequest(BaseModel):
+    """
+    Request body when a developer selects a question from their notification.
+    """
+    option_id: str  # must match one of the option_ids in the notification package
+
+
+class AskResponse(BaseModel):
+    """
+    System's answer to a developer's selected question.
+    """
+    developer_id: str
+    option_id: str
+    label: str
+    answer: str
+    decision: Decision
