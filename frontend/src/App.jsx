@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ReactFlow, Background, Controls } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './App.css'
-import mockImpactReport from './mockImpactReport'
 
+import mockImpactReport from './mockImpactReport'
+import { fetchLatestImpact } from './api'
 
 function getDecisionStyle(decision) {
   if (decision === 'ACTION') {
@@ -59,6 +60,7 @@ const projectEdges = [
     target: 'notification-dev',
   },
 ]
+
 const fullNetworkEdges = [
   ...projectEdges,
   {
@@ -76,37 +78,53 @@ const fullNetworkEdges = [
 function App() {
   const [reviewDecision, setReviewDecision] = useState(null)
   const [viewMode, setViewMode] = useState('project')
+  const [impactReport, setImpactReport] = useState(mockImpactReport)
+  const [dataSource, setDataSource] = useState('mock')
 
- const projectNodes = [
+  useEffect(() => {
+    async function loadImpactReport() {
+      try {
+        const data = await fetchLatestImpact()
+       setDataSource('live')
+        console.log('Using backend impact report')
+      } catch (error) {
+        console.warn('Backend unavailable, using mock impact report')
+      }
+    }
+
+    loadImpactReport()
+  }, [])
+
+  const projectNodes = [
     {
-  id: 'project',
-  position: { x: 80, y: 180 },
-  data: { label: 'novaHB Project' },
-  style: {
-    background: '#f8fafc',
-    color: '#0f172a',
-    border: '1px solid #cbd5e1',
-    fontWeight: '600',
-  },
-},
-   {
-  id: 'billing',
-  position: { x: 360, y: 100 },
-  data: { label: 'Billing Module' },
-  style: {
-    background: '#f8fafc',
-    color: '#0f172a',
-    border: '1px solid #cbd5e1',
-    fontWeight: '600',
-  },
-},
+      id: 'project',
+      position: { x: 80, y: 180 },
+      data: { label: 'novaHB Project' },
+      style: {
+        background: '#f8fafc',
+        color: '#0f172a',
+        border: '1px solid #cbd5e1',
+        fontWeight: '600',
+      },
+    },
+    {
+      id: 'billing',
+      position: { x: 360, y: 100 },
+      data: { label: 'Billing Module' },
+      style: {
+        background: '#f8fafc',
+        color: '#0f172a',
+        border: '1px solid #cbd5e1',
+        fontWeight: '600',
+      },
+    },
     {
       id: 'batuhan',
       position: { x: 680, y: 60 },
       data: {
-        label: `Batuhan — ${mockImpactReport.routing[0].decision}`,
+        label: `Batuhan — ${impactReport.routing[0].decision}`,
       },
-      style: getDecisionStyle(mockImpactReport.routing[0].decision),
+      style: getDecisionStyle(impactReport.routing[0].decision),
     },
     {
       id: 'db-expert',
@@ -117,7 +135,7 @@ function App() {
             ? 'Database Expert — APPROVED'
             : reviewDecision === 'changes_requested'
               ? 'Database Expert — CHANGES_REQUESTED'
-              : `Database Expert — ${mockImpactReport.routing[1].decision}`,
+              : `Database Expert — ${impactReport.routing[1].decision}`,
       },
       style:
         reviewDecision === 'approved'
@@ -134,43 +152,43 @@ function App() {
                 color: '#fca5a5',
                 fontWeight: '600',
               }
-            : getDecisionStyle(mockImpactReport.routing[1].decision),
+            : getDecisionStyle(impactReport.routing[1].decision),
     },
     {
       id: 'notification-dev',
       position: { x: 680, y: 420 },
       data: {
-        label: `Notification Developer — ${mockImpactReport.routing[2].decision}`,
+        label: `Notification Developer — ${impactReport.routing[2].decision}`,
       },
-      style: getDecisionStyle(mockImpactReport.routing[2].decision),
+      style: getDecisionStyle(impactReport.routing[2].decision),
     },
-    
   ]
+
   const fullNetworkNodes = [
-  ...projectNodes,
-  {
-    id: 'auth',
-    position: { x: 360, y: 300 },
-    data: { label: 'Auth Module' },
-    style: {
-      background: '#f8fafc',
-      color: '#0f172a',
-      border: '1px solid #cbd5e1',
-      fontWeight: '600',
+    ...projectNodes,
+    {
+      id: 'auth',
+      position: { x: 360, y: 300 },
+      data: { label: 'Auth Module' },
+      style: {
+        background: '#f8fafc',
+        color: '#0f172a',
+        border: '1px solid #cbd5e1',
+        fontWeight: '600',
+      },
     },
-  },
-  {
-    id: 'hilal',
-    position: { x: 680, y: 330 },
-    data: { label: 'Hilal — Auth / Frontend' },
-    style: {
-      background: '#0f172a',
-      color: '#93c5fd',
-      border: '1px solid #3b82f6',
-      fontWeight: '600',
+    {
+      id: 'hilal',
+      position: { x: 680, y: 330 },
+      data: { label: 'Hilal — Auth / Frontend' },
+      style: {
+        background: '#0f172a',
+        color: '#93c5fd',
+        border: '1px solid #3b82f6',
+        fontWeight: '600',
+      },
     },
-  },
-]
+  ]
 
   return (
     <div
@@ -209,6 +227,23 @@ function App() {
         >
           Route attention, not notifications.
         </p>
+        <div
+  style={{
+    display: 'inline-block',
+    marginBottom: '10px',
+    padding: '4px 8px',
+    borderRadius: '999px',
+    fontSize: '11px',
+    fontWeight: '700',
+    background: dataSource === 'live' ? '#052e16' : '#3f3f46',
+    color: dataSource === 'live' ? '#86efac' : '#d4d4d8',
+    border: dataSource === 'live'
+      ? '1px solid #166534'
+      : '1px solid #52525b',
+  }}
+>
+  {dataSource === 'live' ? 'LIVE API' : 'MOCK DATA'}
+</div>
 
         <div
           style={{
@@ -217,11 +252,13 @@ function App() {
           }}
         >
           <button
-          onClick={() => setViewMode('project')}
+            onClick={() => setViewMode('project')}
             style={{
-              background: viewMode === 'project' ? '#2563eb' : '#1f2937',
-              color: viewMode === 'project' ? 'white' : '#94a3b8',
-              border: 'none',
+              background:
+                viewMode === 'project' ? '#2563eb' : '#1f2937',
+              color:
+                viewMode === 'project' ? 'white' : '#94a3b8',
+              border: '1px solid #374151',
               padding: '7px 11px',
               borderRadius: '6px',
               fontWeight: '600',
@@ -232,13 +269,17 @@ function App() {
           </button>
 
           <button
-          onClick={() => setViewMode('full')}
+            onClick={() => setViewMode('full')}
             style={{
-             background: viewMode === 'full' ? '#2563eb' : '#1f2937',
-              color: viewMode === 'full' ? 'white' : '#94a3b8',
+              background:
+                viewMode === 'full' ? '#2563eb' : '#1f2937',
+              color:
+                viewMode === 'full' ? 'white' : '#94a3b8',
               border: '1px solid #374151',
               padding: '7px 11px',
               borderRadius: '6px',
+              fontWeight: '600',
+              cursor: 'pointer',
             }}
           >
             Full Network
@@ -247,7 +288,7 @@ function App() {
           <button
             style={{
               background: '#1f2937',
-              color: '#94a3b8',
+              color: '#64748b',
               border: '1px solid #374151',
               padding: '7px 11px',
               borderRadius: '6px',
@@ -265,7 +306,7 @@ function App() {
           display: 'flex',
         }}
       >
-        {/* LEFT SIDEBAR */}
+        {/* SIDEBAR */}
         <aside
           style={{
             width: '320px',
@@ -280,7 +321,7 @@ function App() {
             background: '#0d1117',
           }}
         >
-          {/* COMMIT CARD */}
+          {/* COMMIT */}
           <section
             style={{
               width: '100%',
@@ -297,7 +338,7 @@ function App() {
                 color: '#94a3b8',
               }}
             >
-              Commit {mockImpactReport.commit.id}
+              Commit {impactReport.commit.id}
             </div>
 
             <div
@@ -307,7 +348,7 @@ function App() {
                 fontSize: '16px',
               }}
             >
-              {mockImpactReport.commit.summary}
+              {impactReport.commit.summary}
             </div>
 
             <div
@@ -317,7 +358,7 @@ function App() {
                 color: '#94a3b8',
               }}
             >
-              Author: {mockImpactReport.commit.author}
+              Author: {impactReport.commit.author}
             </div>
 
             <div
@@ -329,7 +370,7 @@ function App() {
                 color: '#cbd5e1',
               }}
             >
-              {mockImpactReport.semantic_change.summary}
+              {impactReport.semantic_change.summary}
             </div>
 
             <div
@@ -345,11 +386,11 @@ function App() {
                 textTransform: 'uppercase',
               }}
             >
-              {mockImpactReport.semantic_change.criticality} criticality
+              {impactReport.semantic_change.criticality} criticality
             </div>
           </section>
 
-          {/* ACTION CARD */}
+          {/* ACTION */}
           <section
             style={{
               width: '100%',
@@ -378,7 +419,7 @@ function App() {
                 lineHeight: '1.5',
               }}
             >
-              {mockImpactReport.routing[0].reason}
+              {impactReport.routing[0].reason}
             </div>
 
             <div
@@ -400,11 +441,11 @@ function App() {
                 lineHeight: '1.5',
               }}
             >
-              {mockImpactReport.routing[0].recommended_action}
+              {impactReport.routing[0].recommended_action}
             </div>
           </section>
 
-          {/* REVIEW CARD */}
+          {/* REVIEW */}
           <section
             style={{
               width: '100%',
@@ -432,7 +473,7 @@ function App() {
                 color: '#cbd5e1',
               }}
             >
-              {mockImpactReport.routing[1].reason}
+              {impactReport.routing[1].reason}
             </div>
 
             <div
@@ -453,7 +494,7 @@ function App() {
                 fontSize: '13px',
               }}
             >
-              {mockImpactReport.routing[1].recommended_action}
+              {impactReport.routing[1].recommended_action}
             </div>
 
             <div
@@ -480,7 +521,9 @@ function App() {
               </button>
 
               <button
-                onClick={() => setReviewDecision('changes_requested')}
+                onClick={() =>
+                  setReviewDecision('changes_requested')
+                }
                 style={{
                   flex: 1,
                   background: '#7f1d1d',
@@ -531,7 +574,7 @@ function App() {
             )}
           </section>
 
-          {/* SILENT CARD */}
+          {/* SILENT */}
           <section
             style={{
               width: '100%',
@@ -560,7 +603,7 @@ function App() {
                 color: '#cbd5e1',
               }}
             >
-              {mockImpactReport.routing[2].reason}
+              {impactReport.routing[2].reason}
             </div>
 
             <div
@@ -577,7 +620,7 @@ function App() {
           </section>
         </aside>
 
-        {/* GRAPH AREA */}
+        {/* GRAPH */}
         <main
           style={{
             flex: 1,
@@ -587,8 +630,16 @@ function App() {
           }}
         >
           <ReactFlow
-           nodes={viewMode === 'full' ? fullNetworkNodes : projectNodes}
-            edges={viewMode === 'full' ? fullNetworkEdges : projectEdges}
+            nodes={
+              viewMode === 'full'
+                ? fullNetworkNodes
+                : projectNodes
+            }
+            edges={
+              viewMode === 'full'
+                ? fullNetworkEdges
+                : projectEdges
+            }
             fitView
             fitViewOptions={{
               padding: 0.2,
