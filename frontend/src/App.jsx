@@ -1,9 +1,14 @@
-import { useEffect, useState } from 'react'
-import { ReactFlow, Background, Controls } from '@xyflow/react'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  Background,
+  Controls,
+  MarkerType,
+  Position,
+  ReactFlow,
+} from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './App.css'
 import Network3D from './Network3D'
-
 import mockImpactReport from './mockImpactReport'
 import {
   analyzeChange,
@@ -11,152 +16,169 @@ import {
   submitReview,
 } from './api'
 
-function getDecisionStyle(decision) {
-  if (decision === 'ACTION') {
-    return {
-      border: '2px solid #f59e0b',
-      background: '#2a1f0f',
-      color: '#fbbf24',
-      fontWeight: '600',
-      padding: '10px 14px',
-      minWidth: '150px',
-    }
-  }
-
-  if (decision === 'REVIEW_REQUIRED') {
-    return {
-      border: '2px solid #ef4444',
-      background: '#2a1111',
-      color: '#f87171',
-      fontWeight: '600',
-      padding: '10px 14px',
-      minWidth: '150px',
-    }
-  }
-
-  if (decision === 'SILENT') {
-    return {
-      border: '2px solid #64748b',
-      background: '#111827',
-      color: '#94a3b8',
-      fontWeight: '600',
-      opacity: 0.45,
-      padding: '10px 14px',
-      minWidth: '150px',
-    }
-  }
-
-  return {}
+const DECISION_META = {
+  ACTION: {
+    label: 'ACTION',
+    tone: 'action',
+    color: '#fb923c',
+  },
+  REVIEW_REQUIRED: {
+    label: 'REVIEW REQUIRED',
+    tone: 'review',
+    color: '#ef4444',
+  },
+  SILENT: {
+    label: 'SILENT',
+    tone: 'silent',
+    color: '#64748b',
+  },
 }
 
 function formatDeveloperName(id) {
   if (!id) return 'Unknown'
 
-  return id
-    .split('-')
-    .map(
-      (part) =>
-        part.charAt(0).toUpperCase() + part.slice(1)
-    )
-    .join(' ')
+  const names = {
+    hilal: 'Hilal',
+    batuhan: 'Batuhan',
+    ayse: 'Ayşe',
+    emre: 'Emre',
+    selin: 'Selin',
+    mert: 'Mert',
+  }
+
+  return (
+    names[id] ??
+    id
+      .split('-')
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ')
+  )
 }
 
-const projectEdges = [
-  {
-    id: 'project-billing',
-    source: 'project',
-    target: 'billing',
-  },
-  {
-    id: 'billing-action',
-    source: 'billing',
-    target: 'action-dev',
-  },
-  {
-    id: 'project-review',
-    source: 'project',
-    target: 'review-dev',
-  },
-  {
-    id: 'project-silent',
-    source: 'project',
-    target: 'silent-dev',
-  },
-]
+function initials(name) {
+  return name
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+}
 
+function BrandMark() {
+  return (
+    <svg className="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+      <rect width="24" height="24" rx="6" fill="currentColor" />
+      <circle cx="7" cy="12" r="2.1" fill="#080b10" />
+      <circle cx="17" cy="7" r="2.1" fill="#080b10" />
+      <circle cx="17" cy="17" r="2.1" fill="#080b10" opacity="0.55" />
+      <path d="M9 11 15 7.8M9 13l6 3.2" stroke="#080b10" strokeWidth="1.4" fill="none" />
+    </svg>
+  )
+}
 
+function DecisionBadge({ decision }) {
+  const meta = DECISION_META[decision] ?? DECISION_META.SILENT
+  return <span className={`decision-badge ${meta.tone}`}>{meta.label}</span>
+}
+
+function GraphNodeLabel({ eyebrow, title, tag, tone = 'neutral', muted = false }) {
+  return (
+    <div className={`graph-node-card ${tone} ${muted ? 'muted' : ''}`}>
+      <div className="graph-node-topline">
+        <span className="graph-node-dot" />
+        <span className="graph-node-eyebrow">{eyebrow}</span>
+        {tag && <span className="graph-node-tag">{tag}</span>}
+      </div>
+      <div className="graph-node-title">{title}</div>
+    </div>
+  )
+}
+
+function RailSection({ title, action, children, compact = false }) {
+  return (
+    <section className={`rail-section ${compact ? 'compact' : ''}`}>
+      <div className="rail-section-head">
+        <h3>{title}</h3>
+        {action}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function RouteCard({ route, onSelect }) {
+  const name = formatDeveloperName(route.developer_id)
+  const meta = DECISION_META[route.decision] ?? DECISION_META.SILENT
+
+  return (
+    <button
+      className={`route-card ${meta.tone}`}
+      type="button"
+      onClick={() => onSelect(route)}
+    >
+      <span className={`avatar ${meta.tone}`}>{initials(name)}</span>
+      <span className="route-card-body">
+        <span className="route-card-title-row">
+          <strong>{name}</strong>
+          <DecisionBadge decision={route.decision} />
+        </span>
+        <span className="route-card-reason">{route.reason}</span>
+        {route.recommended_action && (
+          <span className="route-card-action">{route.recommended_action}</span>
+        )}
+      </span>
+      <span className="route-chevron">›</span>
+    </button>
+  )
+}
 
 function App() {
   const [reviewDecision, setReviewDecision] = useState(null)
   const [viewMode, setViewMode] = useState('project')
-  const [impactReport, setImpactReport] =
-    useState(mockImpactReport)
-
+  const [impactReport, setImpactReport] = useState(mockImpactReport)
   const [dataSource, setDataSource] = useState('mock')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [hasAnalyzed, setHasAnalyzed] = useState(true)
-  const [showResultHighlight, setShowResultHighlight] =
-    useState(false)
+  const [showResultHighlight, setShowResultHighlight] = useState(false)
+  const [selectedDetail, setSelectedDetail] = useState(null)
+
+  const routingItems = impactReport?.routing ?? []
+  const affectedModules = impactReport?.affected_modules ?? []
+  const semanticChange = impactReport?.semantic_change ?? {}
 
   const actionRoute =
-    impactReport.routing.find(
-      (item) => item.decision === 'ACTION'
-    ) ??
-    mockImpactReport.routing.find(
-      (item) => item.decision === 'ACTION'
-    )
+    routingItems.find((item) => item.decision === 'ACTION') ??
+    mockImpactReport.routing.find((item) => item.decision === 'ACTION')
 
   const reviewRoute =
-    impactReport.routing.find(
-      (item) => item.decision === 'REVIEW_REQUIRED'
-    ) ??
-    mockImpactReport.routing.find(
-      (item) => item.decision === 'REVIEW_REQUIRED'
-    )
+    routingItems.find((item) => item.decision === 'REVIEW_REQUIRED') ??
+    mockImpactReport.routing.find((item) => item.decision === 'REVIEW_REQUIRED')
 
-  const silentRoutes = impactReport.routing.filter(
-    (item) => item.decision === 'SILENT'
-  )
-
+  const silentRoutes = routingItems.filter((item) => item.decision === 'SILENT')
   const notificationSilentRoute =
     silentRoutes.find((item) => {
       const text = `${item.developer_id} ${item.reason}`.toLowerCase()
-
-      return (
-        text.includes('notification') ||
-        item.developer_id === 'ayse'
-      )
+      return text.includes('notification') || item.developer_id === 'ayse'
     }) ??
     silentRoutes[0] ??
-    mockImpactReport.routing.find(
-      (item) => item.decision === 'SILENT'
-    )
+    mockImpactReport.routing.find((item) => item.decision === 'SILENT')
 
-  const actionCount = impactReport.routing.filter(
-    (item) => item.decision === 'ACTION'
-  ).length
-
-  const reviewCount = impactReport.routing.filter(
-    (item) => item.decision === 'REVIEW_REQUIRED'
-  ).length
-
+  const actionCount = routingItems.filter((item) => item.decision === 'ACTION').length
+  const reviewCount = routingItems.filter((item) => item.decision === 'REVIEW_REQUIRED').length
   const silentCount = silentRoutes.length
-
   const attentionCount = actionCount + reviewCount
+
+  const affectedPrimary =
+    affectedModules.find((module) => module.status === 'affected') ?? affectedModules[0]
 
   useEffect(() => {
     async function loadImpactReport() {
       try {
         const data = await fetchLatestImpact()
-
         setImpactReport(data)
         setDataSource('live')
-
-        console.log('Using backend impact report')
       } catch (error) {
-        console.warn(
-          'Backend unavailable, using mock impact report'
-        )
+        console.warn('Backend unavailable, using mock impact report')
       }
     }
 
@@ -165,1090 +187,602 @@ function App() {
 
   async function handleReview(decision) {
     try {
-      await submitReview(
-        reviewRoute.developer_id,
-        decision
-      )
-
-      console.log(
-        'Review sent to backend:',
-        decision
-      )
+      await submitReview(reviewRoute.developer_id, decision)
     } catch (error) {
-      console.warn(
-        'Backend unavailable, applying review locally'
-      )
+      console.warn('Backend unavailable, applying review locally')
     }
 
-    if (decision === 'approve') {
-      setReviewDecision('approved')
-    }
-
-    if (decision === 'request_changes') {
-      setReviewDecision('changes_requested')
-    }
+    if (decision === 'approve') setReviewDecision('approved')
+    if (decision === 'request_changes') setReviewDecision('changes_requested')
   }
 
   async function handleAnalyze() {
     setIsAnalyzing(true)
     setHasAnalyzed(false)
     setReviewDecision(null)
+    setSelectedDetail(null)
 
     try {
       const data = await analyzeChange()
-
       setImpactReport(data)
       setDataSource('live')
     } catch (error) {
-      console.warn(
-        'Backend unavailable, using mock analysis'
-      )
-
-      await new Promise((resolve) =>
-        setTimeout(resolve, 1200)
-      )
-
+      console.warn('Backend unavailable, using mock analysis')
+      await new Promise((resolve) => setTimeout(resolve, 1000))
       setImpactReport(mockImpactReport)
       setDataSource('mock')
     } finally {
       setIsAnalyzing(false)
       setHasAnalyzed(true)
-
       setShowResultHighlight(true)
-
-      setTimeout(() => {
-        setShowResultHighlight(false)
-      }, 1800)
+      setTimeout(() => setShowResultHighlight(false), 1800)
     }
   }
 
-  const projectNodes = [
-    {
-      id: 'project',
-      position: { x: 60, y: 220 },
-      data: { label: 'novaHB Project' },
-      style: {
-        background: '#f8fafc',
-        color: '#0f172a',
-        border: '1px solid #cbd5e1',
-        fontWeight: '600',
-        padding: '10px 16px',
-        minWidth: '140px',
+  const projectNodes = useMemo(() => {
+    const moduleName = affectedPrimary?.module ?? 'affected module'
+    const moduleStatus = affectedPrimary?.status ?? 'affected'
+
+    return [
+      {
+        id: 'project',
+        position: { x: 40, y: 215 },
+        sourcePosition: Position.Right,
+        data: {
+          label: (
+            <GraphNodeLabel
+              eyebrow="CODE CHANGE"
+              title={impactReport.commit?.summary ?? 'Semantic code change'}
+              tag={(impactReport.commit?.id ?? '').slice(0, 7)}
+              tone="change"
+            />
+          ),
+          detail: {
+            type: 'Code change',
+            title: impactReport.commit?.summary ?? 'Semantic code change',
+            status: semanticChange.criticality,
+            reason: semanticChange.summary,
+            meta: semanticChange.evidence?.[0],
+          },
+        },
+        style: { background: 'transparent', border: 0, padding: 0, width: 210 },
       },
-    },
-    {
-      id: 'billing',
-      position: { x: 360, y: 100 },
-      data: { label: 'Billing Module' },
-      style: {
-        background: '#f8fafc',
-        color: '#0f172a',
-        border: '1px solid #cbd5e1',
-        fontWeight: '600',
-        padding: '10px 16px',
-        minWidth: '140px',
+      {
+        id: 'billing',
+        position: { x: 360, y: 90 },
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
+        data: {
+          label: (
+            <GraphNodeLabel
+              eyebrow={moduleStatus === 'affected' ? 'AFFECTED MODULE' : 'MODULE'}
+              title={moduleName}
+              tag={moduleStatus.toUpperCase()}
+              tone={moduleStatus === 'affected' ? 'affected' : 'safe'}
+            />
+          ),
+          detail: {
+            type: 'Module',
+            title: moduleName,
+            status: moduleStatus,
+            reason: affectedPrimary?.reason,
+            meta: affectedPrimary?.evidence,
+          },
+        },
+        style: { background: 'transparent', border: 0, padding: 0, width: 205 },
       },
-    },
-    {
-      id: 'action-dev',
-      position: { x: 720, y: 70 },
-      data: {
-        label: `${formatDeveloperName(
-          actionRoute.developer_id
-        )} — ${actionRoute.decision}`,
+      {
+        id: 'action-dev',
+        position: { x: 700, y: 55 },
+        targetPosition: Position.Left,
+        data: {
+          label: (
+            <GraphNodeLabel
+              eyebrow={formatDeveloperName(actionRoute.developer_id)}
+              title="Needs action"
+              tag="ACTION"
+              tone="action"
+            />
+          ),
+          detail: {
+            type: 'Developer',
+            title: formatDeveloperName(actionRoute.developer_id),
+            status: actionRoute.decision,
+            reason: actionRoute.reason,
+            recommendedAction: actionRoute.recommended_action,
+          },
+        },
+        style: { background: 'transparent', border: 0, padding: 0, width: 205 },
       },
-      style: getDecisionStyle(
-        actionRoute.decision
-      ),
-    },
-    {
-      id: 'review-dev',
-      position: { x: 720, y: 260 },
-      data: {
-        label:
-          reviewDecision === 'approved'
-            ? `${formatDeveloperName(
-                reviewRoute.developer_id
-              )} — APPROVED`
-            : reviewDecision === 'changes_requested'
-              ? `${formatDeveloperName(
-                  reviewRoute.developer_id
-                )} — CHANGES_REQUESTED`
-              : `${formatDeveloperName(
-                  reviewRoute.developer_id
-                )} — ${reviewRoute.decision}`,
-      },
-      style:
-        reviewDecision === 'approved'
-          ? {
-              border: '2px solid #22c55e',
-              background: '#052e16',
-              color: '#86efac',
-              fontWeight: '600',
-              padding: '10px 14px',
-              minWidth: '150px',
-            }
-          : reviewDecision ===
-              'changes_requested'
-            ? {
-                border: '2px solid #ef4444',
-                background: '#450a0a',
-                color: '#fca5a5',
-                fontWeight: '600',
-                padding: '10px 14px',
-                minWidth: '150px',
+      {
+        id: 'review-dev',
+        position: { x: 700, y: 245 },
+        targetPosition: Position.Left,
+        data: {
+          label: (
+            <GraphNodeLabel
+              eyebrow={formatDeveloperName(reviewRoute.developer_id)}
+              title={
+                reviewDecision === 'approved'
+                  ? 'Review approved'
+                  : reviewDecision === 'changes_requested'
+                    ? 'Changes requested'
+                    : 'Expert review'
               }
-            : getDecisionStyle(
-                reviewRoute.decision
-              ),
-    },
-    {
-      id: 'silent-dev',
-      position: { x: 720, y: 450 },
-      data: {
-        label: `${formatDeveloperName(
-          notificationSilentRoute.developer_id
-        )} — ${notificationSilentRoute.decision}`,
+              tag={
+                reviewDecision === 'approved'
+                  ? 'APPROVED'
+                  : reviewDecision === 'changes_requested'
+                    ? 'CHANGES'
+                    : 'REVIEW'
+              }
+              tone={reviewDecision === 'approved' ? 'safe' : 'review'}
+            />
+          ),
+          detail: {
+            type: 'Developer',
+            title: formatDeveloperName(reviewRoute.developer_id),
+            status: reviewRoute.decision,
+            reason: reviewRoute.reason,
+            recommendedAction: reviewRoute.recommended_action,
+          },
+        },
+        style: { background: 'transparent', border: 0, padding: 0, width: 205 },
       },
-      style: getDecisionStyle(
-        notificationSilentRoute.decision
-      ),
-    },
-  ]
+      {
+        id: 'silent-dev',
+        position: { x: 700, y: 420 },
+        targetPosition: Position.Left,
+        data: {
+          label: (
+            <GraphNodeLabel
+              eyebrow={formatDeveloperName(notificationSilentRoute.developer_id)}
+              title="No action required"
+              tag="SILENT"
+              tone="silent"
+              muted
+            />
+          ),
+          detail: {
+            type: 'Developer',
+            title: formatDeveloperName(notificationSilentRoute.developer_id),
+            status: notificationSilentRoute.decision,
+            reason: notificationSilentRoute.reason,
+          },
+        },
+        style: { background: 'transparent', border: 0, padding: 0, width: 205 },
+      },
+    ]
+  }, [
+    impactReport,
+    semanticChange,
+    affectedPrimary,
+    actionRoute,
+    reviewRoute,
+    notificationSilentRoute,
+    reviewDecision,
+  ])
 
-    const affectedModules =
-    impactReport.affected_modules ?? []
+  const projectEdges = useMemo(() => {
+    const base = [
+      ['project-billing', 'project', 'billing', '#fb923c'],
+      ['billing-action', 'billing', 'action-dev', '#fb923c'],
+      ['project-review', 'project', 'review-dev', '#ef4444'],
+      ['project-silent', 'project', 'silent-dev', '#475569'],
+    ]
 
-  const routingItems =
-    impactReport.routing ?? []
+    return base.map(([id, source, target, color]) => {
+      const quiet = id === 'project-silent'
+      const active = showResultHighlight && !quiet
+      return {
+        id,
+        source,
+        target,
+        type: 'smoothstep',
+        animated: active,
+        markerEnd: { type: MarkerType.ArrowClosed, color },
+        style: {
+          stroke: color,
+          strokeWidth: active ? 2.6 : quiet ? 1.2 : 1.7,
+          opacity: quiet ? 0.28 : showResultHighlight ? 1 : 0.68,
+        },
+      }
+    })
+  }, [showResultHighlight])
 
-  const moduleNodes = affectedModules.map(
-    (module, index) => ({
+  const fullNetworkNodes = useMemo(() => {
+    const moduleNodes = affectedModules.map((module, index) => ({
       id: `module-${module.module}`,
-      position: {
-        x: 360,
-        y: 60 + index * 170,
-      },
+      position: { x: 390, y: 60 + index * 155 },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
       data: {
-        label: `${module.module.toUpperCase()} · ${module.status}`,
+        label: (
+          <GraphNodeLabel
+            eyebrow="MODULE"
+            title={module.module}
+            tag={module.status.toUpperCase()}
+            tone={module.status === 'affected' ? 'affected' : 'safe'}
+          />
+        ),
+        detail: {
+          type: 'Module',
+          title: module.module,
+          status: module.status,
+          reason: module.reason,
+          meta: module.evidence,
+        },
       },
-      style: {
-        background:
-          module.status === 'affected'
-            ? '#2a1710'
-            : '#10231b',
-        color:
-          module.status === 'affected'
-            ? '#fdba74'
-            : '#86efac',
-        border:
-          module.status === 'affected'
-            ? '1px solid #f97316'
-            : '1px solid #22c55e',
-        fontWeight: '700',
-        padding: '12px 16px',
-        minWidth: '170px',
-        borderRadius: '8px',
-      },
-    })
-  )
+      style: { background: 'transparent', border: 0, padding: 0, width: 205 },
+    }))
 
-  const developerNodes = routingItems.map(
-    (route, index) => ({
+    const developerNodes = routingItems.map((route, index) => ({
       id: `developer-${route.developer_id}`,
-      position: {
-        x: 760,
-        y: 20 + index * 115,
-      },
+      position: { x: 785, y: 15 + index * 100 },
+      targetPosition: Position.Left,
       data: {
-        label: `${formatDeveloperName(
-          route.developer_id
-        )} · ${route.decision}`,
+        label: (
+          <GraphNodeLabel
+            eyebrow={formatDeveloperName(route.developer_id)}
+            title={route.decision === 'SILENT' ? 'No action required' : route.decision === 'ACTION' ? 'Needs action' : 'Expert review'}
+            tag={DECISION_META[route.decision]?.label ?? route.decision}
+            tone={DECISION_META[route.decision]?.tone ?? 'silent'}
+            muted={route.decision === 'SILENT'}
+          />
+        ),
+        detail: {
+          type: 'Developer',
+          title: formatDeveloperName(route.developer_id),
+          status: route.decision,
+          reason: route.reason,
+          recommendedAction: route.recommended_action,
+        },
       },
-      style: getDecisionStyle(route.decision),
+      style: { background: 'transparent', border: 0, padding: 0, width: 205 },
+    }))
+
+    return [
+      {
+        id: 'project',
+        position: { x: 35, y: 235 },
+        sourcePosition: Position.Right,
+        data: {
+          label: (
+            <GraphNodeLabel
+              eyebrow="CODE CHANGE"
+              title={impactReport.commit?.summary ?? 'Semantic change'}
+              tag={(impactReport.commit?.id ?? '').slice(0, 7)}
+              tone="change"
+            />
+          ),
+          detail: {
+            type: 'Code change',
+            title: impactReport.commit?.summary,
+            status: semanticChange.criticality,
+            reason: semanticChange.summary,
+            meta: semanticChange.evidence?.[0],
+          },
+        },
+        style: { background: 'transparent', border: 0, padding: 0, width: 210 },
+      },
+      ...moduleNodes,
+      ...developerNodes,
+    ]
+  }, [affectedModules, routingItems, impactReport, semanticChange])
+
+  const fullNetworkEdges = useMemo(() => {
+    const moduleEdges = affectedModules.map((module) => {
+      const color = module.status === 'affected' ? '#fb923c' : '#22c55e'
+      return {
+        id: `project-module-${module.module}`,
+        source: 'project',
+        target: `module-${module.module}`,
+        type: 'smoothstep',
+        animated: showResultHighlight && module.status === 'affected',
+        markerEnd: { type: MarkerType.ArrowClosed, color },
+        style: {
+          stroke: color,
+          strokeWidth: module.status === 'affected' && showResultHighlight ? 2.6 : 1.35,
+          opacity: module.status === 'affected' ? 0.85 : 0.35,
+        },
+      }
     })
-  )
 
-  const projectRootNode =
-    projectNodes.find(
-      (node) => node.id === 'project'
-    ) ?? projectNodes[0]
-
-  const fullNetworkNodes = [
-    {
-      ...projectRootNode,
-      position: {
-        x: 20,
-        y: 260,
-      },
-    },
-    ...moduleNodes,
-    ...developerNodes,
-  ]
-
-  const fullNetworkEdges = [
-    ...affectedModules.map((module) => ({
-      id: `project-module-${module.module}`,
-      source: 'project',
-      target: `module-${module.module}`,
-    })),
-
-    ...routingItems.map((route) => {
-      const reason =
-        route.reason?.toLowerCase() ?? ''
-
-      const matchedModule =
-        affectedModules.find((module) =>
-          reason.includes(
-            module.module.toLowerCase()
-          )
-        )
+    const developerEdges = routingItems.map((route) => {
+      const reason = route.reason?.toLowerCase() ?? ''
+      const matchedModule = affectedModules.find((module) =>
+        reason.includes(module.module.toLowerCase())
+      )
+      const meta = DECISION_META[route.decision] ?? DECISION_META.SILENT
+      const quiet = route.decision === 'SILENT'
 
       return {
         id: `route-${route.developer_id}`,
-        source: matchedModule
-          ? `module-${matchedModule.module}`
-          : 'project',
+        source: matchedModule ? `module-${matchedModule.module}` : 'project',
         target: `developer-${route.developer_id}`,
-      }
-    }),
-  ]
-  const highlightedProjectEdges =
-    projectEdges.map((edge) => {
-      if (!showResultHighlight) {
-        return edge
-      }
-
-      if (edge.id === 'project-silent') {
-        return {
-          ...edge,
-          style: {
-            stroke: '#475569',
-            strokeWidth: 1.5,
-            opacity: 0.25,
-          },
-        }
-      }
-
-      if (edge.id === 'billing-action') {
-        return {
-          ...edge,
-          animated: true,
-          style: {
-            stroke: '#f59e0b',
-            strokeWidth: 3,
-          },
-        }
-      }
-
-      if (edge.id === 'project-review') {
-        return {
-          ...edge,
-          animated: true,
-          style: {
-            stroke: '#ef4444',
-            strokeWidth: 3,
-          },
-        }
-      }
-
-      return {
-        ...edge,
-        animated: true,
+        type: 'smoothstep',
+        animated: showResultHighlight && !quiet,
+        markerEnd: { type: MarkerType.ArrowClosed, color: meta.color },
         style: {
-          stroke: '#8b5cf6',
-          strokeWidth: 2.5,
+          stroke: meta.color,
+          strokeWidth: showResultHighlight && !quiet ? 2.5 : quiet ? 1.1 : 1.65,
+          opacity: quiet ? 0.24 : showResultHighlight ? 1 : 0.72,
         },
       }
     })
 
-    const highlightedFullNetworkEdges =
-    fullNetworkEdges.map((edge) => {
-      if (!showResultHighlight) {
-        return {
-          ...edge,
-          style: {
-            stroke: '#475569',
-            strokeWidth: 1.8,
-          },
-        }
-      }
+    return [...moduleEdges, ...developerEdges]
+  }, [affectedModules, routingItems, showResultHighlight])
 
-      const route = routingItems.find(
-        (item) =>
-          edge.target ===
-          `developer-${item.developer_id}`
-      )
+  const currentNodes = viewMode === 'full' ? fullNetworkNodes : projectNodes
+  const currentEdges = viewMode === 'full' ? fullNetworkEdges : projectEdges
+  const graphTitle = viewMode === 'full' ? 'Full Network' : 'Project Focus'
+  const graphSubtitle =
+    viewMode === 'full'
+      ? 'All modules and developers evaluated'
+      : 'Only the attention path that matters'
 
-      if (!route) {
-        const module =
-          affectedModules.find(
-            (item) =>
-              edge.target ===
-              `module-${item.module}`
-          )
-
-        return {
-          ...edge,
-          style: {
-            stroke:
-              module?.status === 'affected'
-                ? '#f97316'
-                : '#475569',
-            strokeWidth:
-              module?.status === 'affected'
-                ? 2.6
-                : 1.6,
-            opacity:
-              module?.status === 'affected'
-                ? 1
-                : 0.55,
-          },
-        }
-      }
-
-      const decisionColors = {
-        ACTION: '#f59e0b',
-        REVIEW_REQUIRED: '#ef4444',
-        SILENT: '#64748b',
-      }
-
-      return {
-        ...edge,
-        animated:
-          route.decision !== 'SILENT',
-        style: {
-          stroke:
-            decisionColors[
-              route.decision
-            ] ?? '#8b5cf6',
-          strokeWidth:
-            route.decision === 'SILENT'
-              ? 1.5
-              : 3,
-          opacity:
-            route.decision === 'SILENT'
-              ? 0.3
-              : 1,
-        },
-      }
+  function selectRoute(route) {
+    setSelectedDetail({
+      type: 'Developer',
+      title: formatDeveloperName(route.developer_id),
+      status: route.decision,
+      reason: route.reason,
+      recommendedAction: route.recommended_action,
     })
+  }
 
   return (
-    <div
-      style={{
-        width: '100vw',
-        height: '100vh',
-        background: '#0d1117',
-        color: 'white',
-        overflow: 'hidden',
-      }}
-    >
-      <header
-        style={{
-          height: '130px',
-          padding: '18px 24px',
-          boxSizing: 'border-box',
-          borderBottom: '1px solid #1f2937',
-          background: '#0d1117',
-        }}
-      >
-        <h2
-          style={{
-            margin: 0,
-            fontSize: '22px',
-          }}
-        >
-          novaHB
-        </h2>
+    <div className="app-shell">
+      <header className="top-bar">
+        <div className="brand-area">
+          <BrandMark />
+          <strong className="wordmark">novaHB</strong>
+          <span className="brand-divider" />
+          <span className="tagline">Route attention, not notifications.</span>
+        </div>
 
-        <p
-          style={{
-            margin: '4px 0 8px',
-            color: '#94a3b8',
-          }}
-        >
-          Route attention, not notifications.
-        </p>
-
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            flexWrap: 'wrap',
-          }}
-        >
+        <nav className="view-switch" aria-label="Graph view">
           <button
-            onClick={() =>
+            type="button"
+            className={viewMode === 'project' ? 'active' : ''}
+            onClick={() => {
               setViewMode('project')
-            }
-            style={{
-              background:
-                viewMode === 'project'
-                  ? '#2563eb'
-                  : '#1f2937',
-              color:
-                viewMode === 'project'
-                  ? 'white'
-                  : '#94a3b8',
-              border: '1px solid #374151',
-              padding: '7px 11px',
-              borderRadius: '6px',
-              fontWeight: '600',
-              cursor: 'pointer',
+              setSelectedDetail(null)
             }}
           >
+            <span className="nav-icon">◎</span>
             Project Focus
           </button>
-
           <button
-            onClick={() =>
+            type="button"
+            className={viewMode === 'full' ? 'active' : ''}
+            onClick={() => {
               setViewMode('full')
-            }
-            style={{
-              background:
-                viewMode === 'full'
-                  ? '#2563eb'
-                  : '#1f2937',
-              color:
-                viewMode === 'full'
-                  ? 'white'
-                  : '#94a3b8',
-              border: '1px solid #374151',
-              padding: '7px 11px',
-              borderRadius: '6px',
-              fontWeight: '600',
-              cursor: 'pointer',
+              setSelectedDetail(null)
             }}
           >
+            <span className="nav-icon">⌘</span>
             Full Network
           </button>
-
-         <button
-  onClick={() => setViewMode('3d')}
-  style={{
-    background:
-      viewMode === '3d'
-        ? '#7c3aed'
-        : '#1f2937',
-    color:
-      viewMode === '3d'
-        ? 'white'
-        : '#94a3b8',
-    border: '1px solid #374151',
-    padding: '7px 11px',
-    borderRadius: '6px',
-    fontWeight: '600',
-    cursor: 'pointer',
-  }}
->
-  3D
-</button>
-
           <button
+            type="button"
+            className={viewMode === '3d' ? 'active' : ''}
+            onClick={() => {
+              setViewMode('3d')
+              setSelectedDetail(null)
+            }}
+          >
+            <span className="nav-icon">◇</span>
+            3D Network
+          </button>
+        </nav>
+
+        <div className="top-actions">
+          <span className={`source-badge ${dataSource}`}>
+            <span className="source-dot" />
+            {dataSource === 'live' ? 'LIVE API' : 'MOCK DATA'}
+          </span>
+          <button
+            className="analyze-button"
+            type="button"
             onClick={handleAnalyze}
             disabled={isAnalyzing}
-            style={{
-              background: isAnalyzing
-                ? '#374151'
-                : '#7c3aed',
-              color: 'white',
-              border: '1px solid #8b5cf6',
-              padding: '7px 12px',
-              borderRadius: '6px',
-              fontWeight: '700',
-              cursor: isAnalyzing
-                ? 'not-allowed'
-                : 'pointer',
-            }}
           >
-            {isAnalyzing
-              ? 'Analyzing...'
-              : 'Analyze Change'}
+            <span className={isAnalyzing ? 'spinner' : 'play-icon'}>{isAnalyzing ? '' : '▶'}</span>
+            {isAnalyzing ? 'Analyzing…' : 'Analyze Change'}
           </button>
-
-          <div
-            style={{
-              marginLeft: '6px',
-              padding: '4px 8px',
-              borderRadius: '999px',
-              fontSize: '11px',
-              fontWeight: '700',
-              background:
-                dataSource === 'live'
-                  ? '#052e16'
-                  : '#3f3f46',
-              color:
-                dataSource === 'live'
-                  ? '#86efac'
-                  : '#d4d4d8',
-              border:
-                dataSource === 'live'
-                  ? '1px solid #166534'
-                  : '1px solid #52525b',
-            }}
-          >
-            {dataSource === 'live'
-              ? 'LIVE API'
-              : 'MOCK DATA'}
-          </div>
         </div>
       </header>
 
-      <div
-        style={{
-          height: 'calc(100vh - 130px)',
-          display: 'flex',
-        }}
-      >
-        <aside
-          style={{
-            width: '320px',
-            flexShrink: 0,
-            borderRight: '1px solid #1f2937',
-            padding: '16px',
-            boxSizing: 'border-box',
-            overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px',
-            background: '#0d1117',
-          }}
-        >
-          <section
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              background: '#111827',
-              border: '1px solid #374151',
-              borderRadius: '8px',
-              padding: '12px',
-            }}
+      <div className="workspace">
+        <aside className={`intelligence-rail ${isAnalyzing ? 'dimmed' : ''}`}>
+          <RailSection
+            title="Change summary"
+            action={
+              <span className={`criticality ${(semanticChange.criticality ?? 'unknown').toLowerCase()}`}>
+                {semanticChange.criticality ?? 'unknown'}
+              </span>
+            }
           >
-            <div
-              style={{
-                fontSize: '12px',
-                color: '#94a3b8',
-              }}
-            >
-              Commit {impactReport.commit.id}
+            <div className="commit-line">
+              <span className="commit-glyph">⌁</span>
+              <code>{(impactReport.commit?.id ?? '').slice(0, 8)}</code>
+              <span>{impactReport.commit?.summary}</span>
             </div>
 
-            <div
-              style={{
-                marginTop: '5px',
-                fontWeight: '700',
-                fontSize: '16px',
-              }}
-            >
-              {impactReport.commit.summary}
+            <div className="semantic-box">
+              <div className="semantic-file">{semanticChange.evidence?.[0] ?? 'semantic change'}</div>
+              <div className="semantic-summary">{semanticChange.summary}</div>
             </div>
 
-            <div
-              style={{
-                marginTop: '5px',
-                fontSize: '12px',
-                color: '#94a3b8',
-              }}
-            >
-              Author: {impactReport.commit.author}
-            </div>
-
-            <div
-              style={{
-                marginTop: '12px',
-                paddingTop: '10px',
-                borderTop:
-                  '1px solid #374151',
-                fontSize: '12px',
-                color: '#cbd5e1',
-              }}
-            >
-              {
-                impactReport.semantic_change
-                  .summary
-              }
-            </div>
-
-            <div
-              style={{
-                marginTop: '10px',
-                display: 'inline-block',
-                padding: '4px 8px',
-                borderRadius: '999px',
-                background: '#3f1d1d',
-                color: '#f87171',
-                fontSize: '11px',
-                fontWeight: '700',
-                textTransform: 'uppercase',
-              }}
-            >
-              {
-                impactReport.semantic_change
-                  .criticality
-              }{' '}
-              criticality
-                       </div>
-
-            {impactReport?.semantic_change?.broken_contracts?.length > 0 && (
-              <div
-                style={{
-                  marginTop: '12px',
-                  padding: '10px',
-                  background: '#1e1b4b',
-                  border: '1px solid #7c3aed',
-                  borderRadius: '7px',
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: '700',
-                    color: '#c4b5fd',
-                    marginBottom: '7px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.04em',
-                  }}
-                >
-                  Bob Semantic Insight · Broken Contracts
-                </div>
-
-                <ul
-                  style={{
-                    margin: 0,
-                    paddingLeft: '18px',
-                    color: '#ddd6fe',
-                    fontSize: '12px',
-                    lineHeight: '1.6',
-                  }}
-                >
-                  {impactReport.semantic_change.broken_contracts.map(
-                    (contract, index) => (
-                      <li key={`${contract}-${index}`}>
-                        {contract}
-                      </li>
+            {semanticChange.domains?.length > 0 && (
+              <div className="domain-block">
+                <span className="rail-label">Affected domains</span>
+                <div className="domain-list">
+                  {semanticChange.domains.map((domain) => {
+                    const module = affectedModules.find((item) => item.module === domain)
+                    const tone = module?.status === 'affected' ? 'affected' : module?.status === 'safe' ? 'safe' : 'neutral'
+                    return (
+                      <span key={domain} className={`domain-pill ${tone}`}>
+                        <span className="domain-dot" />
+                        {domain}
+                      </span>
                     )
-                  )}
-                </ul>
+                  })}
+                </div>
               </div>
             )}
-          </section>
 
-          <section
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              background: '#111827',
-              border: '1px solid #f59e0b',
-              borderRadius: '8px',
-              padding: '12px',
-            }}
+            {semanticChange.broken_contracts?.length > 0 && (
+              <div className="broken-contract-box">
+                <span className="warning-icon">△</span>
+                <div>
+                  <strong>Bob semantic insight</strong>
+                  {semanticChange.broken_contracts.map((contract, index) => (
+                    <p key={`${contract}-${index}`}>{contract}</p>
+                  ))}
+                </div>
+              </div>
+            )}
+          </RailSection>
+
+          <RailSection
+            title="Attention routing"
+            action={<span className="section-count">{routingItems.length} evaluated</span>}
           >
-            <div
-              style={{
-                fontSize: '12px',
-                fontWeight: '700',
-                color: '#fbbf24',
-              }}
-            >
-              ACTION —{' '}
-              {formatDeveloperName(
-                actionRoute.developer_id
-              )}
+            <div className="route-list">
+              {actionRoute && <RouteCard route={actionRoute} onSelect={selectRoute} />}
+              {reviewRoute && <RouteCard route={reviewRoute} onSelect={selectRoute} />}
             </div>
 
-            <div
-              style={{
-                marginTop: '8px',
-                fontSize: '13px',
-                color: '#cbd5e1',
-                lineHeight: '1.5',
-              }}
-            >
-              {actionRoute.reason}
-            </div>
+            <button className="silent-summary" type="button" onClick={() => silentRoutes[0] && selectRoute(silentRoutes[0])}>
+              <span className="muted-icon">⌁</span>
+              <span>
+                <strong>{silentCount} kept silent</strong>
+                <small>{silentRoutes.map((route) => formatDeveloperName(route.developer_id)).join(', ')}</small>
+              </span>
+              <span className="silent-badge">SILENT</span>
+            </button>
+          </RailSection>
 
-            <div
-              style={{
-                marginTop: '10px',
-                paddingTop: '8px',
-                borderTop:
-                  '1px solid #374151',
-                fontSize: '12px',
-                color: '#94a3b8',
-              }}
-            >
-              Recommended action
-            </div>
-
-            <div
-              style={{
-                marginTop: '5px',
-                fontSize: '13px',
-                lineHeight: '1.5',
-              }}
-            >
-              {actionRoute.recommended_action}
-            </div>
-          </section>
-
-          <section
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              background: '#111827',
-              border: '1px solid #ef4444',
-              borderRadius: '8px',
-              padding: '12px',
-            }}
-          >
-            <div
-              style={{
-                fontSize: '12px',
-                fontWeight: '700',
-                color: '#f87171',
-              }}
-            >
-              REVIEW_REQUIRED —{' '}
-              {formatDeveloperName(
-                reviewRoute.developer_id
-              )}
-            </div>
-
-            <div
-              style={{
-                marginTop: '8px',
-                fontSize: '13px',
-                color: '#cbd5e1',
-              }}
-            >
-              {reviewRoute.reason}
-            </div>
-
-            <div
-              style={{
-                marginTop: '10px',
-                paddingTop: '8px',
-                borderTop:
-                  '1px solid #374151',
-                fontSize: '12px',
-                color: '#94a3b8',
-              }}
-            >
-              Recommended review
-            </div>
-
-            <div
-              style={{
-                marginTop: '5px',
-                fontSize: '13px',
-              }}
-            >
-              {reviewRoute.recommended_action}
-            </div>
-
-            <div
-              style={{
-                marginTop: '12px',
-                display: 'flex',
-                gap: '8px',
-              }}
-            >
+          <RailSection title="Review" compact>
+            <p className="review-copy">
+              {reviewRoute?.recommended_action ?? 'Review the expert-routed change before merge.'}
+            </p>
+            <div className="review-actions">
               <button
-                onClick={() =>
-                  handleReview('approve')
-                }
-                style={{
-                  flex: 1,
-                  background: '#166534',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '8px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                }}
+                type="button"
+                className="approve-button"
+                disabled={isAnalyzing}
+                onClick={() => handleReview('approve')}
               >
                 Approve
               </button>
-
               <button
-                onClick={() =>
-                  handleReview(
-                    'request_changes'
-                  )
-                }
-                style={{
-                  flex: 1,
-                  background: '#7f1d1d',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '8px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                }}
+                type="button"
+                className="changes-button"
+                disabled={isAnalyzing}
+                onClick={() => handleReview('request_changes')}
               >
-                Request Changes
+                Request changes
               </button>
             </div>
+            {reviewDecision && (
+              <div className={`review-state ${reviewDecision}`}>
+                {reviewDecision === 'approved' ? 'Review approved' : 'Changes requested'}
+              </div>
+            )}
+          </RailSection>
 
-            {reviewDecision ===
-              'approved' && (
-              <div
-                style={{
-                  marginTop: '10px',
-                  padding: '8px',
-                  borderRadius: '6px',
-                  background: '#052e16',
-                  color: '#86efac',
-                  fontSize: '12px',
-                  fontWeight: '700',
-                  textAlign: 'center',
-                }}
-              >
-                Review approved
+          <RailSection title="Analysis impact" compact>
+            <div className="impact-grid">
+              <div>
+                <span>Developers</span>
+                <strong>{routingItems.length}</strong>
+                <small>evaluated</small>
+              </div>
+              <div>
+                <span>Attention</span>
+                <strong className="attention-number">{attentionCount}</strong>
+                <small>events</small>
+              </div>
+              <div>
+                <span>Kept silent</span>
+                <strong>{silentCount}</strong>
+                <small>no action</small>
+              </div>
+            </div>
+            <div className="impact-line">
+              {actionCount} ACTION · {reviewCount} REVIEW REQUIRED · {silentCount} SILENT
+            </div>
+          </RailSection>
+        </aside>
+
+        <main className="canvas-column">
+          <section className={`graph-shell ${showResultHighlight ? 'analysis-highlight' : ''}`}>
+            {viewMode !== '3d' && (
+              <div className="graph-toolbar">
+                <div className="graph-heading">
+                  <strong>{graphTitle}</strong>
+                  <span>{graphSubtitle}</span>
+                  <code>{currentNodes.length} nodes · {currentEdges.length} edges</code>
+                </div>
+                <div className="legend">
+                  <span><i className="legend-dot action" />Action</span>
+                  <span><i className="legend-dot review" />Review required</span>
+                  <span><i className="legend-dot silent" />Silent</span>
+                  <span><i className="legend-dot affected" />Affected module</span>
+                  <span><i className="legend-dot safe" />Safe module</span>
+                </div>
               </div>
             )}
 
-            {reviewDecision ===
-              'changes_requested' && (
-              <div
-                style={{
-                  marginTop: '10px',
-                  padding: '8px',
-                  borderRadius: '6px',
-                  background: '#450a0a',
-                  color: '#fca5a5',
-                  fontSize: '12px',
-                  fontWeight: '700',
-                  textAlign: 'center',
-                }}
-              >
-                Changes requested
-              </div>
-            )}
-          </section>
-
-          <section
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              background: '#111827',
-              border: '1px solid #475569',
-              borderRadius: '8px',
-              padding: '12px',
-              opacity: 0.7,
-            }}
-          >
-            <div
-              style={{
-                fontSize: '12px',
-                fontWeight: '700',
-                color: '#94a3b8',
-              }}
-            >
-              SILENT —{' '}
-              {formatDeveloperName(
-                notificationSilentRoute.developer_id
+            <div className="graph-stage">
+              {hasAnalyzed ? (
+                viewMode === '3d' ? (
+                  <Network3D impactReport={impactReport} />
+                ) : (
+                  <ReactFlow
+                    nodes={currentNodes}
+                    edges={currentEdges}
+                    fitView
+                    minZoom={0.55}
+                    maxZoom={1.65}
+                    fitViewOptions={{ padding: viewMode === 'full' ? 0.14 : 0.18 }}
+                    onNodeClick={(_, node) => setSelectedDetail(node.data?.detail ?? null)}
+                    proOptions={{ hideAttribution: true }}
+                  >
+                    <Background gap={20} size={1} color="#18202b" />
+                    <Controls position="bottom-right" showInteractive={false} />
+                  </ReactFlow>
+                )
+              ) : (
+                <div className="analysis-state">
+                  <span className="analysis-orb" />
+                  <strong>Analyzing semantic change</strong>
+                  <p>Mapping affected modules and routing only the attention that matters.</p>
+                </div>
               )}
             </div>
 
-            <div
-              style={{
-                marginTop: '8px',
-                fontSize: '13px',
-                color: '#cbd5e1',
-              }}
-            >
-              {notificationSilentRoute.reason}
-            </div>
-
-            <div
-              style={{
-                marginTop: '10px',
-                paddingTop: '8px',
-                borderTop:
-                  '1px solid #374151',
-                fontSize: '12px',
-                color: '#64748b',
-              }}
-            >
-              No action required
-            </div>
+            {selectedDetail && viewMode !== '3d' && (
+              <aside className="node-inspector">
+                <button className="inspector-close" type="button" onClick={() => setSelectedDetail(null)} aria-label="Close inspector">×</button>
+                <span className="inspector-label">{selectedDetail.type}</span>
+                <h4>{selectedDetail.title}</h4>
+                {selectedDetail.status && <span className="inspector-status">{selectedDetail.status}</span>}
+                {selectedDetail.reason && <p>{selectedDetail.reason}</p>}
+                {selectedDetail.meta && <code>{selectedDetail.meta}</code>}
+                {selectedDetail.recommendedAction && (
+                  <div className="inspector-action">
+                    <span>Recommended action</span>
+                    <p>{selectedDetail.recommendedAction}</p>
+                  </div>
+                )}
+              </aside>
+            )}
           </section>
-
-          <section
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              background: '#111827',
-              border: '1px solid #2563eb',
-              borderRadius: '8px',
-              padding: '12px',
-            }}
-          >
-            <div
-              style={{
-                fontSize: '12px',
-                fontWeight: '700',
-                color: '#93c5fd',
-                marginBottom: '10px',
-              }}
-            >
-              ANALYSIS IMPACT
-            </div>
-
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns:
-                  '1fr 1fr',
-                gap: '8px',
-              }}
-            >
-              <div
-                style={{
-                  background: '#0f172a',
-                  borderRadius: '6px',
-                  padding: '10px',
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: '11px',
-                    color: '#94a3b8',
-                  }}
-                >
-                  Developers evaluated
-                </div>
-
-                <div
-                  style={{
-                    marginTop: '4px',
-                    fontSize: '22px',
-                    fontWeight: '700',
-                  }}
-                >
-                  {impactReport.routing.length}
-                </div>
-              </div>
-
-              <div
-                style={{
-                  background: '#0f172a',
-                  borderRadius: '6px',
-                  padding: '10px',
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: '11px',
-                    color: '#94a3b8',
-                  }}
-                >
-                  Attention events
-                </div>
-
-                <div
-                  style={{
-                    marginTop: '4px',
-                    fontSize: '22px',
-                    fontWeight: '700',
-                    color: '#86efac',
-                  }}
-                >
-                  {attentionCount}
-                </div>
-              </div>
-            </div>
-
-            <div
-              style={{
-                marginTop: '10px',
-                paddingTop: '10px',
-                borderTop:
-                  '1px solid #374151',
-                fontSize: '12px',
-                color: '#cbd5e1',
-                lineHeight: '1.6',
-              }}
-            >
-              {actionCount} ACTION ·{' '}
-              {reviewCount} REVIEW_REQUIRED ·{' '}
-              {silentCount} SILENT
-            </div>
-
-            <div
-              style={{
-                marginTop: '8px',
-                color: '#86efac',
-                fontWeight: '700',
-                fontSize: '13px',
-              }}
-            >
-              {silentCount} developers kept
-              silent because no action was
-              required
-            </div>
-          </section>
-        </aside>
-
-        <main
-          style={{
-            flex: 1,
-            minWidth: 0,
-            position: 'relative',
-            background: '#0d1117',
-          }}
-        >
-          {hasAnalyzed ? (
-  viewMode === '3d' ? (
-    <Network3D
-      impactReport={impactReport}
-    />
-  ) : (
-    <ReactFlow
-      className={
-        showResultHighlight
-          ? 'analysis-highlight'
-          : ''
-      }
-      nodes={
-        viewMode === 'full'
-          ? fullNetworkNodes
-          : projectNodes
-      }
-      edges={
-        viewMode === 'full'
-          ? highlightedFullNetworkEdges
-          : highlightedProjectEdges
-      }
-      fitView
-      fitViewOptions={{
-        padding: 0.08,
-      }}
-    >
-      <Background />
-      <Controls position="bottom-right" />
-    </ReactFlow>
-  )
-) : (
-            <div
-              style={{
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#94a3b8',
-                fontSize: '14px',
-              }}
-            >
-              Analyzing semantic change and
-              routing attention...
-            </div>
-          )}
         </main>
       </div>
     </div>
