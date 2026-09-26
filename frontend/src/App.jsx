@@ -680,7 +680,50 @@ function App() {
                   .criticality
               }{' '}
               criticality
-            </div>
+                       </div>
+
+            {impactReport?.semantic_change?.broken_contracts?.length > 0 && (
+              <div
+                style={{
+                  marginTop: '12px',
+                  padding: '10px',
+                  background: '#1e1b4b',
+                  border: '1px solid #7c3aed',
+                  borderRadius: '7px',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    color: '#c4b5fd',
+                    marginBottom: '7px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  Bob Semantic Insight · Broken Contracts
+                </div>
+
+                <ul
+                  style={{
+                    margin: 0,
+                    paddingLeft: '18px',
+                    color: '#ddd6fe',
+                    fontSize: '12px',
+                    lineHeight: '1.6',
+                  }}
+                >
+                  {impactReport.semantic_change.broken_contracts.map(
+                    (contract, index) => (
+                      <li key={`${contract}-${index}`}>
+                        {contract}
+                      </li>
+                    )
+                  )}
+                </ul>
+              </div>
+            )}
           </section>
 
           <section
