@@ -29,3 +29,17 @@ export async function submitReview(developerId, decision) {
 
   return response.json()
 }
+export async function analyzeChange() {
+  const response = await fetch(`${API_BASE_URL}/analyze`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to analyze change')
+  }
+
+  return response.json()
+}
