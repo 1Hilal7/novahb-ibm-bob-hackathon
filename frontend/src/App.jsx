@@ -4,7 +4,11 @@ import '@xyflow/react/dist/style.css'
 import './App.css'
 
 import mockImpactReport from './mockImpactReport'
-import { analyzeChange, fetchLatestImpact, submitReview } from './api'
+import {
+  analyzeChange,
+  fetchLatestImpact,
+  submitReview,
+} from './api'
 
 function getDecisionStyle(decision) {
   if (decision === 'ACTION') {
@@ -44,6 +48,18 @@ function getDecisionStyle(decision) {
   return {}
 }
 
+function formatDeveloperName(id) {
+  if (!id) return 'Unknown'
+
+  return id
+    .split('-')
+    .map(
+      (part) =>
+        part.charAt(0).toUpperCase() + part.slice(1)
+    )
+    .join(' ')
+}
+
 const projectEdges = [
   {
     id: 'project-billing',
@@ -51,19 +67,19 @@ const projectEdges = [
     target: 'billing',
   },
   {
-    id: 'billing-batuhan',
+    id: 'billing-action',
     source: 'billing',
-    target: 'batuhan',
+    target: 'action-dev',
   },
   {
-    id: 'project-db-expert',
+    id: 'project-review',
     source: 'project',
-    target: 'db-expert',
+    target: 'review-dev',
   },
   {
-    id: 'project-notification-dev',
+    id: 'project-silent',
     source: 'project',
-    target: 'notification-dev',
+    target: 'silent-dev',
   },
 ]
 
@@ -84,68 +100,138 @@ const fullNetworkEdges = [
 function App() {
   const [reviewDecision, setReviewDecision] = useState(null)
   const [viewMode, setViewMode] = useState('project')
-  const [impactReport, setImpactReport] = useState(mockImpactReport)
+  const [impactReport, setImpactReport] =
+    useState(mockImpactReport)
+
   const [dataSource, setDataSource] = useState('mock')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
-const [hasAnalyzed, setHasAnalyzed] = useState(true)
-const [showResultHighlight, setShowResultHighlight] = useState(false)
+  const [hasAnalyzed, setHasAnalyzed] = useState(true)
+  const [showResultHighlight, setShowResultHighlight] =
+    useState(false)
 
-  async function handleReview(decision) {
-  try {
-    await submitReview('db-expert', decision)
-    console.log('Review sent to backend:', decision)
-  } catch (error) {
-    console.warn('Backend unavailable, applying review locally')
-  }
+  const actionRoute =
+    impactReport.routing.find(
+      (item) => item.decision === 'ACTION'
+    ) ??
+    mockImpactReport.routing.find(
+      (item) => item.decision === 'ACTION'
+    )
 
-  if (decision === 'approve') {
-    setReviewDecision('approved')
-  }
+  const reviewRoute =
+    impactReport.routing.find(
+      (item) => item.decision === 'REVIEW_REQUIRED'
+    ) ??
+    mockImpactReport.routing.find(
+      (item) => item.decision === 'REVIEW_REQUIRED'
+    )
 
-  if (decision === 'request_changes') {
-    setReviewDecision('changes_requested')
-  }
-}
-async function handleAnalyze() {
-  setIsAnalyzing(true)
-  setHasAnalyzed(false)
-  setShowResultHighlight(true)
+  const silentRoutes = impactReport.routing.filter(
+    (item) => item.decision === 'SILENT'
+  )
 
-setTimeout(() => {
-  setShowResultHighlight(false)
-}, 1800)
+  const notificationSilentRoute =
+    silentRoutes.find((item) => {
+      const text = `${item.developer_id} ${item.reason}`.toLowerCase()
 
-  try {
-    const data = await analyzeChange()
-    setImpactReport(data)
-    setDataSource('live')
-  } catch (error) {
-    console.warn('Backend unavailable, using mock analysis')
+      return (
+        text.includes('notification') ||
+        item.developer_id === 'ayse'
+      )
+    }) ??
+    silentRoutes[0] ??
+    mockImpactReport.routing.find(
+      (item) => item.decision === 'SILENT'
+    )
 
-    await new Promise((resolve) => setTimeout(resolve, 1200))
+  const actionCount = impactReport.routing.filter(
+    (item) => item.decision === 'ACTION'
+  ).length
 
-    setImpactReport(mockImpactReport)
-    setDataSource('mock')
-  } finally {
-    setIsAnalyzing(false)
-    setHasAnalyzed(true)
-  }
-}
+  const reviewCount = impactReport.routing.filter(
+    (item) => item.decision === 'REVIEW_REQUIRED'
+  ).length
+
+  const silentCount = silentRoutes.length
+
+  const attentionCount = actionCount + reviewCount
 
   useEffect(() => {
     async function loadImpactReport() {
       try {
         const data = await fetchLatestImpact()
+
         setImpactReport(data)
         setDataSource('live')
+
         console.log('Using backend impact report')
       } catch (error) {
-        console.warn('Backend unavailable, using mock impact report')
+        console.warn(
+          'Backend unavailable, using mock impact report'
+        )
       }
     }
 
     loadImpactReport()
   }, [])
+
+  async function handleReview(decision) {
+    try {
+      await submitReview(
+        reviewRoute.developer_id,
+        decision
+      )
+
+      console.log(
+        'Review sent to backend:',
+        decision
+      )
+    } catch (error) {
+      console.warn(
+        'Backend unavailable, applying review locally'
+      )
+    }
+
+    if (decision === 'approve') {
+      setReviewDecision('approved')
+    }
+
+    if (decision === 'request_changes') {
+      setReviewDecision('changes_requested')
+    }
+  }
+
+  async function handleAnalyze() {
+    setIsAnalyzing(true)
+    setHasAnalyzed(false)
+    setReviewDecision(null)
+
+    try {
+      const data = await analyzeChange()
+
+      setImpactReport(data)
+      setDataSource('live')
+    } catch (error) {
+      console.warn(
+        'Backend unavailable, using mock analysis'
+      )
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, 1200)
+      )
+
+      setImpactReport(mockImpactReport)
+      setDataSource('mock')
+    } finally {
+      setIsAnalyzing(false)
+      setHasAnalyzed(true)
+
+      setShowResultHighlight(true)
+
+      setTimeout(() => {
+        setShowResultHighlight(false)
+      }, 1800)
+    }
+  }
 
   const projectNodes = [
     {
@@ -175,23 +261,33 @@ setTimeout(() => {
       },
     },
     {
-      id: 'batuhan',
+      id: 'action-dev',
       position: { x: 720, y: 70 },
       data: {
-        label: `Batuhan — ${impactReport.routing[0].decision}`,
+        label: `${formatDeveloperName(
+          actionRoute.developer_id
+        )} — ${actionRoute.decision}`,
       },
-      style: getDecisionStyle(impactReport.routing[0].decision),
+      style: getDecisionStyle(
+        actionRoute.decision
+      ),
     },
     {
-      id: 'db-expert',
+      id: 'review-dev',
       position: { x: 720, y: 260 },
       data: {
         label:
           reviewDecision === 'approved'
-            ? 'Database Expert — APPROVED'
+            ? `${formatDeveloperName(
+                reviewRoute.developer_id
+              )} — APPROVED`
             : reviewDecision === 'changes_requested'
-              ? 'Database Expert — CHANGES_REQUESTED'
-              : `Database Expert — ${impactReport.routing[1].decision}`,
+              ? `${formatDeveloperName(
+                  reviewRoute.developer_id
+                )} — CHANGES_REQUESTED`
+              : `${formatDeveloperName(
+                  reviewRoute.developer_id
+                )} — ${reviewRoute.decision}`,
       },
       style:
         reviewDecision === 'approved'
@@ -203,7 +299,8 @@ setTimeout(() => {
               padding: '10px 14px',
               minWidth: '150px',
             }
-          : reviewDecision === 'changes_requested'
+          : reviewDecision ===
+              'changes_requested'
             ? {
                 border: '2px solid #ef4444',
                 background: '#450a0a',
@@ -212,15 +309,21 @@ setTimeout(() => {
                 padding: '10px 14px',
                 minWidth: '150px',
               }
-            : getDecisionStyle(impactReport.routing[1].decision),
+            : getDecisionStyle(
+                reviewRoute.decision
+              ),
     },
     {
-      id: 'notification-dev',
+      id: 'silent-dev',
       position: { x: 720, y: 450 },
       data: {
-        label: `Notification Developer — ${impactReport.routing[2].decision}`,
+        label: `${formatDeveloperName(
+          notificationSilentRoute.developer_id
+        )} — ${notificationSilentRoute.decision}`,
       },
-      style: getDecisionStyle(impactReport.routing[2].decision),
+      style: getDecisionStyle(
+        notificationSilentRoute.decision
+      ),
     },
   ]
 
@@ -242,7 +345,9 @@ setTimeout(() => {
     {
       id: 'hilal',
       position: { x: 720, y: 620 },
-      data: { label: 'Hilal — Auth / Frontend' },
+      data: {
+        label: 'Hilal — Auth / Frontend',
+      },
       style: {
         background: '#0f172a',
         color: '#93c5fd',
@@ -253,6 +358,81 @@ setTimeout(() => {
       },
     },
   ]
+
+  const highlightedProjectEdges =
+    projectEdges.map((edge) => {
+      if (!showResultHighlight) {
+        return edge
+      }
+
+      if (edge.id === 'project-silent') {
+        return {
+          ...edge,
+          style: {
+            stroke: '#475569',
+            strokeWidth: 1.5,
+            opacity: 0.25,
+          },
+        }
+      }
+
+      if (edge.id === 'billing-action') {
+        return {
+          ...edge,
+          animated: true,
+          style: {
+            stroke: '#f59e0b',
+            strokeWidth: 3,
+          },
+        }
+      }
+
+      if (edge.id === 'project-review') {
+        return {
+          ...edge,
+          animated: true,
+          style: {
+            stroke: '#ef4444',
+            strokeWidth: 3,
+          },
+        }
+      }
+
+      return {
+        ...edge,
+        animated: true,
+        style: {
+          stroke: '#8b5cf6',
+          strokeWidth: 2.5,
+        },
+      }
+    })
+
+  const highlightedFullNetworkEdges =
+    fullNetworkEdges.map((edge) => {
+      if (!showResultHighlight) {
+        return edge
+      }
+
+      const highlightedEdge =
+        highlightedProjectEdges.find(
+          (projectEdge) =>
+            projectEdge.id === edge.id
+        )
+
+      if (highlightedEdge) {
+        return highlightedEdge
+      }
+
+      return {
+        ...edge,
+        style: {
+          stroke: '#334155',
+          strokeWidth: 1.5,
+          opacity: 0.45,
+        },
+      }
+    })
 
   return (
     <div
@@ -273,7 +453,12 @@ setTimeout(() => {
           background: '#0d1117',
         }}
       >
-        <h2 style={{ margin: 0, fontSize: '22px' }}>
+        <h2
+          style={{
+            margin: 0,
+            fontSize: '22px',
+          }}
+        >
           novaHB
         </h2>
 
@@ -295,12 +480,18 @@ setTimeout(() => {
           }}
         >
           <button
-            onClick={() => setViewMode('project')}
+            onClick={() =>
+              setViewMode('project')
+            }
             style={{
               background:
-                viewMode === 'project' ? '#2563eb' : '#1f2937',
+                viewMode === 'project'
+                  ? '#2563eb'
+                  : '#1f2937',
               color:
-                viewMode === 'project' ? 'white' : '#94a3b8',
+                viewMode === 'project'
+                  ? 'white'
+                  : '#94a3b8',
               border: '1px solid #374151',
               padding: '7px 11px',
               borderRadius: '6px',
@@ -312,12 +503,18 @@ setTimeout(() => {
           </button>
 
           <button
-            onClick={() => setViewMode('full')}
+            onClick={() =>
+              setViewMode('full')
+            }
             style={{
               background:
-                viewMode === 'full' ? '#2563eb' : '#1f2937',
+                viewMode === 'full'
+                  ? '#2563eb'
+                  : '#1f2937',
               color:
-                viewMode === 'full' ? 'white' : '#94a3b8',
+                viewMode === 'full'
+                  ? 'white'
+                  : '#94a3b8',
               border: '1px solid #374151',
               padding: '7px 11px',
               borderRadius: '6px',
@@ -339,21 +536,28 @@ setTimeout(() => {
           >
             3D
           </button>
+
           <button
-  onClick={handleAnalyze}
-  disabled={isAnalyzing}
-  style={{
-    background: isAnalyzing ? '#374151' : '#7c3aed',
-    color: 'white',
-    border: '1px solid #8b5cf6',
-    padding: '7px 12px',
-    borderRadius: '6px',
-    fontWeight: '700',
-    cursor: isAnalyzing ? 'not-allowed' : 'pointer',
-  }}
->
-  {isAnalyzing ? 'Analyzing...' : 'Analyze Change'}
-</button>
+            onClick={handleAnalyze}
+            disabled={isAnalyzing}
+            style={{
+              background: isAnalyzing
+                ? '#374151'
+                : '#7c3aed',
+              color: 'white',
+              border: '1px solid #8b5cf6',
+              padding: '7px 12px',
+              borderRadius: '6px',
+              fontWeight: '700',
+              cursor: isAnalyzing
+                ? 'not-allowed'
+                : 'pointer',
+            }}
+          >
+            {isAnalyzing
+              ? 'Analyzing...'
+              : 'Analyze Change'}
+          </button>
 
           <div
             style={{
@@ -363,16 +567,22 @@ setTimeout(() => {
               fontSize: '11px',
               fontWeight: '700',
               background:
-                dataSource === 'live' ? '#052e16' : '#3f3f46',
+                dataSource === 'live'
+                  ? '#052e16'
+                  : '#3f3f46',
               color:
-                dataSource === 'live' ? '#86efac' : '#d4d4d8',
+                dataSource === 'live'
+                  ? '#86efac'
+                  : '#d4d4d8',
               border:
                 dataSource === 'live'
                   ? '1px solid #166534'
                   : '1px solid #52525b',
             }}
           >
-            {dataSource === 'live' ? 'LIVE API' : 'MOCK DATA'}
+            {dataSource === 'live'
+              ? 'LIVE API'
+              : 'MOCK DATA'}
           </div>
         </div>
       </header>
@@ -407,7 +617,12 @@ setTimeout(() => {
               padding: '12px',
             }}
           >
-            <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+            <div
+              style={{
+                fontSize: '12px',
+                color: '#94a3b8',
+              }}
+            >
               Commit {impactReport.commit.id}
             </div>
 
@@ -435,12 +650,16 @@ setTimeout(() => {
               style={{
                 marginTop: '12px',
                 paddingTop: '10px',
-                borderTop: '1px solid #374151',
+                borderTop:
+                  '1px solid #374151',
                 fontSize: '12px',
                 color: '#cbd5e1',
               }}
             >
-              {impactReport.semantic_change.summary}
+              {
+                impactReport.semantic_change
+                  .summary
+              }
             </div>
 
             <div
@@ -456,7 +675,11 @@ setTimeout(() => {
                 textTransform: 'uppercase',
               }}
             >
-              {impactReport.semantic_change.criticality} criticality
+              {
+                impactReport.semantic_change
+                  .criticality
+              }{' '}
+              criticality
             </div>
           </section>
 
@@ -477,7 +700,10 @@ setTimeout(() => {
                 color: '#fbbf24',
               }}
             >
-              ACTION — Batuhan
+              ACTION —{' '}
+              {formatDeveloperName(
+                actionRoute.developer_id
+              )}
             </div>
 
             <div
@@ -488,14 +714,15 @@ setTimeout(() => {
                 lineHeight: '1.5',
               }}
             >
-              {impactReport.routing[0].reason}
+              {actionRoute.reason}
             </div>
 
             <div
               style={{
                 marginTop: '10px',
                 paddingTop: '8px',
-                borderTop: '1px solid #374151',
+                borderTop:
+                  '1px solid #374151',
                 fontSize: '12px',
                 color: '#94a3b8',
               }}
@@ -510,7 +737,7 @@ setTimeout(() => {
                 lineHeight: '1.5',
               }}
             >
-              {impactReport.routing[0].recommended_action}
+              {actionRoute.recommended_action}
             </div>
           </section>
 
@@ -531,7 +758,10 @@ setTimeout(() => {
                 color: '#f87171',
               }}
             >
-              REVIEW_REQUIRED — Database Expert
+              REVIEW_REQUIRED —{' '}
+              {formatDeveloperName(
+                reviewRoute.developer_id
+              )}
             </div>
 
             <div
@@ -541,14 +771,15 @@ setTimeout(() => {
                 color: '#cbd5e1',
               }}
             >
-              {impactReport.routing[1].reason}
+              {reviewRoute.reason}
             </div>
 
             <div
               style={{
                 marginTop: '10px',
                 paddingTop: '8px',
-                borderTop: '1px solid #374151',
+                borderTop:
+                  '1px solid #374151',
                 fontSize: '12px',
                 color: '#94a3b8',
               }}
@@ -562,7 +793,7 @@ setTimeout(() => {
                 fontSize: '13px',
               }}
             >
-              {impactReport.routing[1].recommended_action}
+              {reviewRoute.recommended_action}
             </div>
 
             <div
@@ -573,7 +804,9 @@ setTimeout(() => {
               }}
             >
               <button
-                onClick={() => handleReview('approve')}
+                onClick={() =>
+                  handleReview('approve')
+                }
                 style={{
                   flex: 1,
                   background: '#166534',
@@ -589,7 +822,11 @@ setTimeout(() => {
               </button>
 
               <button
-                onClick={() => handleReview('request_changes')}
+                onClick={() =>
+                  handleReview(
+                    'request_changes'
+                  )
+                }
                 style={{
                   flex: 1,
                   background: '#7f1d1d',
@@ -605,7 +842,8 @@ setTimeout(() => {
               </button>
             </div>
 
-            {reviewDecision === 'approved' && (
+            {reviewDecision ===
+              'approved' && (
               <div
                 style={{
                   marginTop: '10px',
@@ -622,7 +860,8 @@ setTimeout(() => {
               </div>
             )}
 
-            {reviewDecision === 'changes_requested' && (
+            {reviewDecision ===
+              'changes_requested' && (
               <div
                 style={{
                   marginTop: '10px',
@@ -658,7 +897,10 @@ setTimeout(() => {
                 color: '#94a3b8',
               }}
             >
-              SILENT — Notification Developer
+              SILENT —{' '}
+              {formatDeveloperName(
+                notificationSilentRoute.developer_id
+              )}
             </div>
 
             <div
@@ -668,14 +910,15 @@ setTimeout(() => {
                 color: '#cbd5e1',
               }}
             >
-              {impactReport.routing[2].reason}
+              {notificationSilentRoute.reason}
             </div>
 
             <div
               style={{
                 marginTop: '10px',
                 paddingTop: '8px',
-                borderTop: '1px solid #374151',
+                borderTop:
+                  '1px solid #374151',
                 fontSize: '12px',
                 color: '#64748b',
               }}
@@ -683,112 +926,121 @@ setTimeout(() => {
               No action required
             </div>
           </section>
+
           <section
-  style={{
-    width: '100%',
-    boxSizing: 'border-box',
-    background: '#111827',
-    border: '1px solid #2563eb',
-    borderRadius: '8px',
-    padding: '12px',
-  }}
->
-  <div
-    style={{
-      fontSize: '12px',
-      fontWeight: '700',
-      color: '#93c5fd',
-      marginBottom: '10px',
-    }}
-  >
-    DEMO IMPACT
-  </div>
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              background: '#111827',
+              border: '1px solid #2563eb',
+              borderRadius: '8px',
+              padding: '12px',
+            }}
+          >
+            <div
+              style={{
+                fontSize: '12px',
+                fontWeight: '700',
+                color: '#93c5fd',
+                marginBottom: '10px',
+              }}
+            >
+              ANALYSIS IMPACT
+            </div>
 
-  <div
-    style={{
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: '8px',
-    }}
-  >
-    <div
-      style={{
-        background: '#0f172a',
-        borderRadius: '6px',
-        padding: '10px',
-      }}
-    >
-      <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-        Traditional routing
-      </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns:
+                  '1fr 1fr',
+                gap: '8px',
+              }}
+            >
+              <div
+                style={{
+                  background: '#0f172a',
+                  borderRadius: '6px',
+                  padding: '10px',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '11px',
+                    color: '#94a3b8',
+                  }}
+                >
+                  Developers evaluated
+                </div>
 
-      <div
-        style={{
-          marginTop: '4px',
-          fontSize: '22px',
-          fontWeight: '700',
-        }}
-      >
-        4
-      </div>
+                <div
+                  style={{
+                    marginTop: '4px',
+                    fontSize: '22px',
+                    fontWeight: '700',
+                  }}
+                >
+                  {impactReport.routing.length}
+                </div>
+              </div>
 
-      <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-        notifications
-      </div>
-    </div>
+              <div
+                style={{
+                  background: '#0f172a',
+                  borderRadius: '6px',
+                  padding: '10px',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '11px',
+                    color: '#94a3b8',
+                  }}
+                >
+                  Attention events
+                </div>
 
-    <div
-      style={{
-        background: '#0f172a',
-        borderRadius: '6px',
-        padding: '10px',
-      }}
-    >
-      <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-        novaHB routing
-      </div>
+                <div
+                  style={{
+                    marginTop: '4px',
+                    fontSize: '22px',
+                    fontWeight: '700',
+                    color: '#86efac',
+                  }}
+                >
+                  {attentionCount}
+                </div>
+              </div>
+            </div>
 
-      <div
-        style={{
-          marginTop: '4px',
-          fontSize: '22px',
-          fontWeight: '700',
-          color: '#86efac',
-        }}
-      >
-        2
-      </div>
+            <div
+              style={{
+                marginTop: '10px',
+                paddingTop: '10px',
+                borderTop:
+                  '1px solid #374151',
+                fontSize: '12px',
+                color: '#cbd5e1',
+                lineHeight: '1.6',
+              }}
+            >
+              {actionCount} ACTION ·{' '}
+              {reviewCount} REVIEW_REQUIRED ·{' '}
+              {silentCount} SILENT
+            </div>
 
-      <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-        attention events
-      </div>
-    </div>
-  </div>
-
-  <div
-    style={{
-      marginTop: '10px',
-      paddingTop: '10px',
-      borderTop: '1px solid #374151',
-      fontSize: '12px',
-      color: '#cbd5e1',
-      lineHeight: '1.5',
-    }}
-  >
-    1 ACTION · 1 REVIEW_REQUIRED · 2 SILENT
-  </div>
-
-  <div
-    style={{
-      marginTop: '8px',
-      color: '#86efac',
-      fontWeight: '700',
-      fontSize: '13px',
-    }}
-  >
-    50% fewer attention events in this controlled demo
-  </div>
-</section>
+            <div
+              style={{
+                marginTop: '8px',
+                color: '#86efac',
+                fontWeight: '700',
+                fontSize: '13px',
+              }}
+            >
+              {silentCount} developers kept
+              silent because no action was
+              required
+            </div>
+          </section>
         </aside>
 
         <main
@@ -800,40 +1052,45 @@ setTimeout(() => {
           }}
         >
           {hasAnalyzed ? (
-  <ReactFlow
-  className={showResultHighlight ? 'analysis-highlight' : ''}
-    nodes={
-      viewMode === 'full'
-        ? fullNetworkNodes
-        : projectNodes
-    }
-    edges={
-      viewMode === 'full'
-        ? fullNetworkEdges
-        : projectEdges
-    }
-    fitView
-    fitViewOptions={{
-      padding: 0.08,
-    }}
-  >
-    <Background />
-    <Controls position="bottom-right" />
-  </ReactFlow>
-) : (
-  <div
-    style={{
-      height: '100%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: '#94a3b8',
-      fontSize: '14px',
-    }}
-  >
-    Analyzing semantic change and routing attention...
-  </div>
-)}
+            <ReactFlow
+              className={
+                showResultHighlight
+                  ? 'analysis-highlight'
+                  : ''
+              }
+              nodes={
+                viewMode === 'full'
+                  ? fullNetworkNodes
+                  : projectNodes
+              }
+              edges={
+                viewMode === 'full'
+                  ? highlightedFullNetworkEdges
+                  : highlightedProjectEdges
+              }
+              fitView
+              fitViewOptions={{
+                padding: 0.08,
+              }}
+            >
+              <Background />
+              <Controls position="bottom-right" />
+            </ReactFlow>
+          ) : (
+            <div
+              style={{
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#94a3b8',
+                fontSize: '14px',
+              }}
+            >
+              Analyzing semantic change and
+              routing attention...
+            </div>
+          )}
         </main>
       </div>
     </div>
