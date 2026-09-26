@@ -4,7 +4,7 @@ import '@xyflow/react/dist/style.css'
 import './App.css'
 
 import mockImpactReport from './mockImpactReport'
-import { fetchLatestImpact, submitReview } from './api'
+import { analyzeChange, fetchLatestImpact, submitReview } from './api'
 
 function getDecisionStyle(decision) {
   if (decision === 'ACTION') {
@@ -86,6 +86,9 @@ function App() {
   const [viewMode, setViewMode] = useState('project')
   const [impactReport, setImpactReport] = useState(mockImpactReport)
   const [dataSource, setDataSource] = useState('mock')
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+const [hasAnalyzed, setHasAnalyzed] = useState(true)
+const [showResultHighlight, setShowResultHighlight] = useState(false)
 
   async function handleReview(decision) {
   try {
@@ -101,6 +104,31 @@ function App() {
 
   if (decision === 'request_changes') {
     setReviewDecision('changes_requested')
+  }
+}
+async function handleAnalyze() {
+  setIsAnalyzing(true)
+  setHasAnalyzed(false)
+  setShowResultHighlight(true)
+
+setTimeout(() => {
+  setShowResultHighlight(false)
+}, 1800)
+
+  try {
+    const data = await analyzeChange()
+    setImpactReport(data)
+    setDataSource('live')
+  } catch (error) {
+    console.warn('Backend unavailable, using mock analysis')
+
+    await new Promise((resolve) => setTimeout(resolve, 1200))
+
+    setImpactReport(mockImpactReport)
+    setDataSource('mock')
+  } finally {
+    setIsAnalyzing(false)
+    setHasAnalyzed(true)
   }
 }
 
@@ -311,6 +339,21 @@ function App() {
           >
             3D
           </button>
+          <button
+  onClick={handleAnalyze}
+  disabled={isAnalyzing}
+  style={{
+    background: isAnalyzing ? '#374151' : '#7c3aed',
+    color: 'white',
+    border: '1px solid #8b5cf6',
+    padding: '7px 12px',
+    borderRadius: '6px',
+    fontWeight: '700',
+    cursor: isAnalyzing ? 'not-allowed' : 'pointer',
+  }}
+>
+  {isAnalyzing ? 'Analyzing...' : 'Analyze Change'}
+</button>
 
           <div
             style={{
@@ -756,25 +799,41 @@ function App() {
             background: '#0d1117',
           }}
         >
-          <ReactFlow
-            nodes={
-              viewMode === 'full'
-                ? fullNetworkNodes
-                : projectNodes
-            }
-            edges={
-              viewMode === 'full'
-                ? fullNetworkEdges
-                : projectEdges
-            }
-            fitView
-            fitViewOptions={{
-              padding: 0.08,
-            }}
-          >
-            <Background />
-            <Controls position="bottom-right" />
-          </ReactFlow>
+          {hasAnalyzed ? (
+  <ReactFlow
+  className={showResultHighlight ? 'analysis-highlight' : ''}
+    nodes={
+      viewMode === 'full'
+        ? fullNetworkNodes
+        : projectNodes
+    }
+    edges={
+      viewMode === 'full'
+        ? fullNetworkEdges
+        : projectEdges
+    }
+    fitView
+    fitViewOptions={{
+      padding: 0.08,
+    }}
+  >
+    <Background />
+    <Controls position="bottom-right" />
+  </ReactFlow>
+) : (
+  <div
+    style={{
+      height: '100%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#94a3b8',
+      fontSize: '14px',
+    }}
+  >
+    Analyzing semantic change and routing attention...
+  </div>
+)}
         </main>
       </div>
     </div>
