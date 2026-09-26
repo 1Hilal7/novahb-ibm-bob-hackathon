@@ -4,7 +4,7 @@ import '@xyflow/react/dist/style.css'
 import './App.css'
 
 import mockImpactReport from './mockImpactReport'
-import { fetchLatestImpact } from './api'
+import { fetchLatestImpact, submitReview } from './api'
 
 function getDecisionStyle(decision) {
   if (decision === 'ACTION') {
@@ -86,6 +86,23 @@ function App() {
   const [viewMode, setViewMode] = useState('project')
   const [impactReport, setImpactReport] = useState(mockImpactReport)
   const [dataSource, setDataSource] = useState('mock')
+
+  async function handleReview(decision) {
+  try {
+    await submitReview('db-expert', decision)
+    console.log('Review sent to backend:', decision)
+  } catch (error) {
+    console.warn('Backend unavailable, applying review locally')
+  }
+
+  if (decision === 'approve') {
+    setReviewDecision('approved')
+  }
+
+  if (decision === 'request_changes') {
+    setReviewDecision('changes_requested')
+  }
+}
 
   useEffect(() => {
     async function loadImpactReport() {
@@ -513,7 +530,7 @@ function App() {
               }}
             >
               <button
-                onClick={() => setReviewDecision('approved')}
+                onClick={() => handleReview('approve')}
                 style={{
                   flex: 1,
                   background: '#166534',
@@ -529,9 +546,7 @@ function App() {
               </button>
 
               <button
-                onClick={() =>
-                  setReviewDecision('changes_requested')
-                }
+                onClick={() => handleReview('request_changes')}
                 style={{
                   flex: 1,
                   background: '#7f1d1d',
@@ -625,6 +640,112 @@ function App() {
               No action required
             </div>
           </section>
+          <section
+  style={{
+    width: '100%',
+    boxSizing: 'border-box',
+    background: '#111827',
+    border: '1px solid #2563eb',
+    borderRadius: '8px',
+    padding: '12px',
+  }}
+>
+  <div
+    style={{
+      fontSize: '12px',
+      fontWeight: '700',
+      color: '#93c5fd',
+      marginBottom: '10px',
+    }}
+  >
+    DEMO IMPACT
+  </div>
+
+  <div
+    style={{
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '8px',
+    }}
+  >
+    <div
+      style={{
+        background: '#0f172a',
+        borderRadius: '6px',
+        padding: '10px',
+      }}
+    >
+      <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+        Traditional routing
+      </div>
+
+      <div
+        style={{
+          marginTop: '4px',
+          fontSize: '22px',
+          fontWeight: '700',
+        }}
+      >
+        4
+      </div>
+
+      <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+        notifications
+      </div>
+    </div>
+
+    <div
+      style={{
+        background: '#0f172a',
+        borderRadius: '6px',
+        padding: '10px',
+      }}
+    >
+      <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+        novaHB routing
+      </div>
+
+      <div
+        style={{
+          marginTop: '4px',
+          fontSize: '22px',
+          fontWeight: '700',
+          color: '#86efac',
+        }}
+      >
+        2
+      </div>
+
+      <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+        attention events
+      </div>
+    </div>
+  </div>
+
+  <div
+    style={{
+      marginTop: '10px',
+      paddingTop: '10px',
+      borderTop: '1px solid #374151',
+      fontSize: '12px',
+      color: '#cbd5e1',
+      lineHeight: '1.5',
+    }}
+  >
+    1 ACTION · 1 REVIEW_REQUIRED · 2 SILENT
+  </div>
+
+  <div
+    style={{
+      marginTop: '8px',
+      color: '#86efac',
+      fontWeight: '700',
+      fontSize: '13px',
+    }}
+  >
+    50% fewer attention events in this controlled demo
+  </div>
+</section>
         </aside>
 
         <main
