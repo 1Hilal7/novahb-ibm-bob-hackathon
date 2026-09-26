@@ -16,3 +16,4 @@ env/
 .coverage
 htmlcov/
 data/
+.env

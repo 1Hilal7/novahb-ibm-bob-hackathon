@@ -54,20 +54,25 @@ def route_developer(
     ]
 
     # -- REVIEW_REQUIRED check ------------------------------------------
-    # Condition: criticality is HIGH AND semantic domain overlaps with
-    # developer expertise AND developer is actively responsible for the
-    # changed domain (e.g., schema / database).
+    # Deterministic rule:
+    # A high-criticality change that touches a schema/model/shared data surface
+    # requires review from the developer responsible for schema/migrations.
+    #
+    # IMPORTANT: this decision intentionally does NOT depend on LLM-generated
+    # semantic domain names. Gemini may enrich explanations, but must not change
+    # routing decisions.
     if semantic_change.criticality == Criticality.HIGH:
-        domain_match = _has_domain_match(developer, semantic_change)
-        if domain_match and _is_schema_responsible(developer, changed_files):
+        if _is_schema_responsible(developer, changed_files):
             reason = (
                 f"The shared User schema changed (required → optional email) "
                 f"and {developer.name} is responsible for schema migration "
                 f"and backward compatibility. Expert review is required."
             )
+
             if semantic_change.broken_contracts:
                 contracts_text = "; ".join(semantic_change.broken_contracts)
                 reason += f" Broken contracts identified: {contracts_text}."
+
             return RoutingDecision(
                 developer_id=developer.id,
                 decision=Decision.REVIEW_REQUIRED,
@@ -135,28 +140,100 @@ def _has_domain_match(developer: Developer, semantic_change: SemanticChange) -> 
     return False
 
 
-def _is_schema_responsible(developer: Developer, changed_files: list[str]) -> bool:
+def _is_schema_responsible(
+    developer: Developer,
+    changed_files: list[str],
+) -> bool:
     """
-    Return True if the developer is actively working on the changed files
-    or owns the schema/database/shared domain explicitly.
+    Return True when this developer is responsible for reviewing a changed
+    schema/model surface.
+
+    This predicate is deterministic. It relies only on changed file paths and
+    developer metadata — never on LLM-generated semantic domain labels.
     """
-    # Direct file overlap with current task
+
+    normalized_changed = [
+        changed.replace("\\", "/").lower()
+        for changed in changed_files
+    ]
+
+    # 1. Direct overlap between developer's active task files and changed files.
     for task_file in developer.current_task_files:
-        for changed in changed_files:
-            # Normalize paths for comparison
+        task_normalized = task_file.replace("\\", "/").lower()
+
+        for changed in normalized_changed:
             if (
-                task_file.replace("\\", "/") in changed.replace("\\", "/")
-                or changed.replace("\\", "/").endswith(task_file.replace("\\", "/"))
+                task_normalized in changed
+                or changed.endswith(task_normalized)
             ):
                 return True
 
-    # Developer explicitly owns 'shared' module (schema owner)
-    if "shared" in developer.modules:
-        schema_expertise = {"database", "schema", "migrations"}
-        if schema_expertise.intersection(set(developer.expertise)):
-            return True
+    # 2. Detect whether the actual git change touches a schema/model/shared
+    #    data-contract surface.
+    schema_path_markers = (
+        "/schema/",
+        "/schemas/",
+        "/model/",
+        "/models/",
+        "/entity/",
+        "/entities/",
+        "/shared/",
+    )
 
-    return False
+    schema_file_names = {
+        "schema.py",
+        "schemas.py",
+        "model.py",
+        "models.py",
+    }
+
+    touches_schema_surface = any(
+        any(marker in f"/{changed}" for marker in schema_path_markers)
+        or changed.rsplit("/", 1)[-1] in schema_file_names
+        for changed in normalized_changed
+    )
+
+    if not touches_schema_surface:
+        return False
+
+    schema_expertise = {
+        "database",
+        "schema",
+        "migrations",
+    }
+
+    developer_expertise = {
+        expertise.lower()
+        for expertise in developer.expertise
+    }
+
+    if not schema_expertise.intersection(developer_expertise):
+        return False
+
+    # Schema/shared ownership is deterministic developer metadata.
+    owns_shared_surface = any(
+        module.lower() == "shared"
+        for module in developer.modules
+    )
+
+    # Active schema/migration responsibility is also deterministic metadata.
+    current_task = getattr(developer, "current_task", "") or ""
+    current_task_lower = current_task.lower()
+
+    schema_task_terms = (
+        "schema",
+        "migration",
+        "backward compatibility",
+        "database",
+        "data model",
+    )
+
+    task_is_schema_related = any(
+        term in current_task_lower
+        for term in schema_task_terms
+    )
+
+    return owns_shared_surface or task_is_schema_related
 
 
 def _has_task_overlap(developer: Developer, affected_module: AffectedModule) -> bool:
