@@ -118,6 +118,22 @@ def test_impact_latest_after_analyze():
     assert "semantic_change" in data
 
 
+
+def test_analyze_semantic_change_has_broken_contracts_field():
+    """POST /analyze response must include semantic_change.broken_contracts as a list."""
+    response = client.post("/analyze", json={})
+    assert response.status_code == 200
+    data = response.json()
+    sc = data.get("semantic_change", {})
+    assert "broken_contracts" in sc, (
+        "semantic_change must include broken_contracts field"
+    )
+    assert isinstance(sc["broken_contracts"], list), (
+        f"broken_contracts must be a list, got {type(sc['broken_contracts'])}"
+    )
+
+
+
 # ---------------------------------------------------------------------------
 # GET /project
 # ---------------------------------------------------------------------------

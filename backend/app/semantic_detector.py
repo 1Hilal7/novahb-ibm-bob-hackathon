@@ -105,11 +105,15 @@ def _detect_with_llm(
         if not summary:
             return None
 
+        raw_contracts = result.get("contracts", [])
+        broken_contracts = [str(c) for c in raw_contracts if c] if isinstance(raw_contracts, list) else []
+
         return SemanticChange(
             summary=summary,
             domains=domains,
             criticality=criticality,
             evidence=changed_files,
+            broken_contracts=broken_contracts,
         )
     except Exception:
         return None

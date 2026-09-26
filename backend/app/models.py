@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # ---------------------------------------------------------------------------
@@ -85,6 +85,7 @@ class SemanticChange(BaseModel):
     domains: list[str]
     criticality: Criticality
     evidence: list[str]
+    broken_contracts: list[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

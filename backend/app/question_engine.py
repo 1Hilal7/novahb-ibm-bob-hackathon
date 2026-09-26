@@ -97,6 +97,44 @@ def _build_action_questions(
     ]
 
 
+def _build_what_breaks_answer(report: ImpactReport) -> str:
+    """
+    Build the what_breaks_if_merged answer text.
+    Prepends Bob's identified broken_contracts when available,
+    then lists safe/affected modules. Falls back to generic risks if empty.
+    """
+    parts = []
+
+    if report.semantic_change.broken_contracts:
+        contracts_bullets = "\n".join(
+            f"- {c}" for c in report.semantic_change.broken_contracts
+        )
+        parts.append(f"**Bob'un tespit ettiği kırık kontratlar:**\n\n{contracts_bullets}")
+
+    parts.append(
+        "**Potansiyel riskler:**\n\n"
+        "- Mevcut user kayıtlarında `email` alanı boş olabilir → "
+        "null kontrolsüz kod patlar\n"
+        "- ORM / serializer'lar nullable field'ı farklı handle edebilir\n"
+        "- Schema migration olmadan eski DB kayıtlarıyla uyumsuzluk oluşabilir\n"
+        "- API response'larında `email: null` döner — frontend bunu bekliyor mu?"
+    )
+
+    safe_mods = ", ".join(
+        m.module for m in report.affected_modules if m.status.value == "safe"
+    ) or "yok"
+    affected_mods = ", ".join(
+        m.module for m in report.affected_modules if m.status.value == "affected"
+    ) or "yok"
+    parts.append(
+        f"**Şu anda SAFE olan modüller:** {safe_mods}\n"
+        f"**AFFECTED olan modüller:** {affected_mods}\n\n"
+        "Tam güvenli merge için tüm affected modüller fix'lenmeli."
+    )
+
+    return "\n\n".join(parts)
+
+
 def _build_review_required_questions(
     dev: Developer,
     routing: RoutingDecision,
@@ -151,19 +189,7 @@ def _build_review_required_questions(
         NotificationQuestion(
             option_id="what_breaks_if_merged",
             label="💥 Merge edilirse ne bozulur?",
-            answer=(
-                f"**Potansiyel riskler:**\n\n"
-                f"- Mevcut user kayıtlarında `email` alanı boş olabilir → "
-                f"null kontrolsüz kod patlar\n"
-                f"- ORM / serializer'lar nullable field'ı farklı handle edebilir\n"
-                f"- Schema migration olmadan eski DB kayıtlarıyla uyumsuzluk oluşabilir\n"
-                f"- API response'larında `email: null` döner — frontend bunu bekliyor mu?\n\n"
-                f"**Şu anda SAFE olan modüller:** "
-                f"{', '.join(m.module for m in report.affected_modules if m.status.value == 'safe') or 'yok'}\n"
-                f"**AFFECTED olan modüller:** "
-                f"{', '.join(m.module for m in report.affected_modules if m.status.value == 'affected') or 'yok'}\n\n"
-                f"Tam güvenli merge için tüm affected modüller fix'lenmeli."
-            ),
+            answer=_build_what_breaks_answer(report),
         ),
     ]
 

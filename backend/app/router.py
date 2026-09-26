@@ -60,14 +60,18 @@ def route_developer(
     if semantic_change.criticality == Criticality.HIGH:
         domain_match = _has_domain_match(developer, semantic_change)
         if domain_match and _is_schema_responsible(developer, changed_files):
+            reason = (
+                f"The shared User schema changed (required → optional email) "
+                f"and {developer.name} is responsible for schema migration "
+                f"and backward compatibility. Expert review is required."
+            )
+            if semantic_change.broken_contracts:
+                contracts_text = "; ".join(semantic_change.broken_contracts)
+                reason += f" Broken contracts identified: {contracts_text}."
             return RoutingDecision(
                 developer_id=developer.id,
                 decision=Decision.REVIEW_REQUIRED,
-                reason=(
-                    f"The shared User schema changed (required → optional email) "
-                    f"and {developer.name} is responsible for schema migration "
-                    f"and backward compatibility. Expert review is required."
-                ),
+                reason=reason,
                 recommended_action=(
                     "Review backward compatibility, migration behavior, "
                     "and persisted user records."
@@ -250,6 +254,7 @@ Enrich the reasoning and recommended_action for each non-SILENT developer.
 Semantic change: {semantic_summary}
 Criticality: {criticality}
 Affected modules: {affected_modules}
+Broken contracts: {broken_contracts}
 
 Developers needing enrichment:
 {developers_json}
@@ -312,12 +317,18 @@ def _enrich_with_llm(
     if not devs_payload:
         return decisions
 
+    broken_contracts_text = (
+        "\n".join(f"- {c}" for c in semantic_change.broken_contracts)
+        if semantic_change.broken_contracts
+        else "none identified"
+    )
     prompt = _ROUTING_ENRICH_PROMPT.format(
         semantic_summary=semantic_change.summary,
         criticality=semantic_change.criticality.value,
         affected_modules=", ".join(
             f"{m.module} ({m.status.value})" for m in affected_modules
         ),
+        broken_contracts=broken_contracts_text,
         developers_json=_json.dumps(devs_payload, indent=2),
     )
 

@@ -157,3 +157,109 @@ def test_all_6_developers_in_routing(pipeline_result):
     expected = {"hilal", "batuhan", "ayse", "emre", "selin", "mert"}
     actual = set(pipeline_result["routing"].keys())
     assert actual == expected, f"Missing developers: {expected - actual}"
+
+
+# ---------------------------------------------------------------------------
+# broken_contracts tests
+# ---------------------------------------------------------------------------
+
+def test_semantic_change_broken_contracts_is_list(pipeline_result):
+    """broken_contracts must always be a list (empty or populated)."""
+    sc = pipeline_result["semantic_change"]
+    assert isinstance(sc.broken_contracts, list), (
+        f"Expected broken_contracts to be a list, got {type(sc.broken_contracts)}"
+    )
+
+
+def test_emre_review_reason_includes_contracts_when_present(pipeline_result):
+    """When broken_contracts is non-empty, Emre's REVIEW_REQUIRED reason must reference them."""
+    sc = pipeline_result["semantic_change"]
+    if not sc.broken_contracts:
+        # No LLM available in this environment — fallback produces empty list, skip
+        import pytest
+        pytest.skip("broken_contracts is empty (no LLM key in CI) — skipping contract-in-reason check")
+
+    reason = pipeline_result["routing"]["emre"].reason
+    # At least one contract text should appear in the reason
+    assert any(c[:20] in reason for c in sc.broken_contracts), (
+        f"Expected emre's reason to contain contract text.\n"
+        f"Contracts: {sc.broken_contracts}\n"
+        f"Reason: {reason}"
+    )
+
+
+def test_fallback_routing_decisions_unchanged(pipeline_result):
+    """
+    Core routing decisions must be deterministic regardless of broken_contracts.
+    Even if broken_contracts is empty (fallback), counts must be 1/1/4.
+    """
+    routing = list(pipeline_result["routing"].values())
+    from backend.app.models import Decision
+    actions = [r for r in routing if r.decision == Decision.ACTION]
+    reviews = [r for r in routing if r.decision == Decision.REVIEW_REQUIRED]
+    silents = [r for r in routing if r.decision == Decision.SILENT]
+    assert len(actions) == 1
+    assert len(reviews) == 1
+    assert len(silents) == 4
+
+
+def test_semantic_change_serializes_broken_contracts():
+    """SemanticChange with broken_contracts round-trips through JSON correctly."""
+    from backend.app.models import SemanticChange, Criticality
+    sc = SemanticChange(
+        summary="test",
+        domains=["user-model"],
+        criticality=Criticality.HIGH,
+        evidence=["shared/user.py"],
+        broken_contracts=["User.email must be non-null", "API guarantees email present"],
+    )
+    data = sc.model_dump()
+    assert data["broken_contracts"] == ["User.email must be non-null", "API guarantees email present"]
+
+    # Round-trip via model
+    sc2 = SemanticChange(**data)
+    assert sc2.broken_contracts == sc.broken_contracts
+
+
+def test_semantic_change_default_broken_contracts_empty():
+    """SemanticChange without broken_contracts defaults to empty list."""
+    from backend.app.models import SemanticChange, Criticality
+    sc = SemanticChange(
+        summary="test",
+        domains=["general"],
+        criticality=Criticality.LOW,
+        evidence=[],
+    )
+    assert sc.broken_contracts == []
+
+
+def test_impact_report_backward_compatible_without_broken_contracts():
+    """ImpactReport constructed from data without broken_contracts must still parse."""
+    from backend.app.models import (
+        ImpactReport, CommitInfo, SemanticChange, Criticality,
+        AffectedModule, ModuleStatus, RoutingDecision, Decision,
+    )
+    # Simulate old JSON that has no broken_contracts field
+    sc_data = {
+        "summary": "email nullable",
+        "domains": ["user-model"],
+        "criticality": "high",
+        "evidence": ["shared/user.py"],
+        # broken_contracts intentionally absent
+    }
+    sc = SemanticChange(**sc_data)
+    assert sc.broken_contracts == []
+
+    report = ImpactReport(
+        commit=CommitInfo(id="abc12345", author="test", summary="make email nullable"),
+        semantic_change=sc,
+        affected_modules=[
+            AffectedModule(module="billing", status=ModuleStatus.AFFECTED,
+                           reason="unsafe", evidence="sample_repo/billing/"),
+        ],
+        routing=[
+            RoutingDecision(developer_id="emre", decision=Decision.REVIEW_REQUIRED,
+                            reason="schema owner"),
+        ],
+    )
+    assert report.semantic_change.broken_contracts == []
