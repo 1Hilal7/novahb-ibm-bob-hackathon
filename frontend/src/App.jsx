@@ -83,19 +83,7 @@ const projectEdges = [
   },
 ]
 
-const fullNetworkEdges = [
-  ...projectEdges,
-  {
-    id: 'project-auth',
-    source: 'project',
-    target: 'auth',
-  },
-  {
-    id: 'auth-hilal',
-    source: 'auth',
-    target: 'hilal',
-  },
-]
+
 
 function App() {
   const [reviewDecision, setReviewDecision] = useState(null)
@@ -327,38 +315,103 @@ function App() {
     },
   ]
 
-  const fullNetworkNodes = [
-    ...projectNodes,
-    {
-      id: 'auth',
-      position: { x: 360, y: 350 },
-      data: { label: 'Auth Module' },
-      style: {
-        background: '#f8fafc',
-        color: '#0f172a',
-        border: '1px solid #cbd5e1',
-        fontWeight: '600',
-        padding: '10px 16px',
-        minWidth: '140px',
+    const affectedModules =
+    impactReport.affected_modules ?? []
+
+  const routingItems =
+    impactReport.routing ?? []
+
+  const moduleNodes = affectedModules.map(
+    (module, index) => ({
+      id: `module-${module.module}`,
+      position: {
+        x: 360,
+        y: 60 + index * 170,
       },
-    },
-    {
-      id: 'hilal',
-      position: { x: 720, y: 620 },
       data: {
-        label: 'Hilal — Auth / Frontend',
+        label: `${module.module.toUpperCase()} · ${module.status}`,
       },
       style: {
-        background: '#0f172a',
-        color: '#93c5fd',
-        border: '2px solid #3b82f6',
-        fontWeight: '600',
-        padding: '10px 14px',
-        minWidth: '150px',
+        background:
+          module.status === 'affected'
+            ? '#2a1710'
+            : '#10231b',
+        color:
+          module.status === 'affected'
+            ? '#fdba74'
+            : '#86efac',
+        border:
+          module.status === 'affected'
+            ? '1px solid #f97316'
+            : '1px solid #22c55e',
+        fontWeight: '700',
+        padding: '12px 16px',
+        minWidth: '170px',
+        borderRadius: '8px',
+      },
+    })
+  )
+
+  const developerNodes = routingItems.map(
+    (route, index) => ({
+      id: `developer-${route.developer_id}`,
+      position: {
+        x: 760,
+        y: 20 + index * 115,
+      },
+      data: {
+        label: `${formatDeveloperName(
+          route.developer_id
+        )} · ${route.decision}`,
+      },
+      style: getDecisionStyle(route.decision),
+    })
+  )
+
+  const projectRootNode =
+    projectNodes.find(
+      (node) => node.id === 'project'
+    ) ?? projectNodes[0]
+
+  const fullNetworkNodes = [
+    {
+      ...projectRootNode,
+      position: {
+        x: 20,
+        y: 260,
       },
     },
+    ...moduleNodes,
+    ...developerNodes,
   ]
 
+  const fullNetworkEdges = [
+    ...affectedModules.map((module) => ({
+      id: `project-module-${module.module}`,
+      source: 'project',
+      target: `module-${module.module}`,
+    })),
+
+    ...routingItems.map((route) => {
+      const reason =
+        route.reason?.toLowerCase() ?? ''
+
+      const matchedModule =
+        affectedModules.find((module) =>
+          reason.includes(
+            module.module.toLowerCase()
+          )
+        )
+
+      return {
+        id: `route-${route.developer_id}`,
+        source: matchedModule
+          ? `module-${matchedModule.module}`
+          : 'project',
+        target: `developer-${route.developer_id}`,
+      }
+    }),
+  ]
   const highlightedProjectEdges =
     projectEdges.map((edge) => {
       if (!showResultHighlight) {
@@ -408,28 +461,74 @@ function App() {
       }
     })
 
-  const highlightedFullNetworkEdges =
+    const highlightedFullNetworkEdges =
     fullNetworkEdges.map((edge) => {
       if (!showResultHighlight) {
-        return edge
+        return {
+          ...edge,
+          style: {
+            stroke: '#475569',
+            strokeWidth: 1.8,
+          },
+        }
       }
 
-      const highlightedEdge =
-        highlightedProjectEdges.find(
-          (projectEdge) =>
-            projectEdge.id === edge.id
-        )
+      const route = routingItems.find(
+        (item) =>
+          edge.target ===
+          `developer-${item.developer_id}`
+      )
 
-      if (highlightedEdge) {
-        return highlightedEdge
+      if (!route) {
+        const module =
+          affectedModules.find(
+            (item) =>
+              edge.target ===
+              `module-${item.module}`
+          )
+
+        return {
+          ...edge,
+          style: {
+            stroke:
+              module?.status === 'affected'
+                ? '#f97316'
+                : '#475569',
+            strokeWidth:
+              module?.status === 'affected'
+                ? 2.6
+                : 1.6,
+            opacity:
+              module?.status === 'affected'
+                ? 1
+                : 0.55,
+          },
+        }
+      }
+
+      const decisionColors = {
+        ACTION: '#f59e0b',
+        REVIEW_REQUIRED: '#ef4444',
+        SILENT: '#64748b',
       }
 
       return {
         ...edge,
+        animated:
+          route.decision !== 'SILENT',
         style: {
-          stroke: '#334155',
-          strokeWidth: 1.5,
-          opacity: 0.45,
+          stroke:
+            decisionColors[
+              route.decision
+            ] ?? '#8b5cf6',
+          strokeWidth:
+            route.decision === 'SILENT'
+              ? 1.5
+              : 3,
+          opacity:
+            route.decision === 'SILENT'
+              ? 0.3
+              : 1,
         },
       }
     })
