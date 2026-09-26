@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
-from backend.app.git_analyzer import analyze_commit
+from backend.app.git_analyzer import analyze_commit, find_relevant_commit
 from backend.app.semantic_detector import detect_semantic_change
 from backend.app.relevance_analyzer import analyze_all_modules
 from backend.app.router import route_all
@@ -24,7 +24,8 @@ from backend.app.models import Developer, Decision, ModuleStatus
 @pytest.fixture(scope="module")
 def pipeline_result():
     """Run the full pipeline once for all routing tests."""
-    git_result = analyze_commit()
+    commit_id = find_relevant_commit()  # targets the nullable email demo commit
+    git_result = analyze_commit(commit_id)
     sc = detect_semantic_change(git_result.changed_files, git_result.diff)
     affected = analyze_all_modules(git_result.changed_files, sc)
     raw_devs = load_developers()

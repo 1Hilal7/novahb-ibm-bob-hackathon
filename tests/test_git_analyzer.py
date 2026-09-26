@@ -10,12 +10,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
-from backend.app.git_analyzer import analyze_commit, get_head_commit_id, get_changed_files
+from backend.app.git_analyzer import analyze_commit, get_head_commit_id, get_changed_files, find_relevant_commit
 
 
 def test_git_analyzer_returns_result():
-    """Git analyzer should return a result for HEAD without error."""
-    result = analyze_commit()
+    """Git analyzer should return a result for the demo commit without error."""
+    commit_id = find_relevant_commit()
+    result = analyze_commit(commit_id)
     assert result is not None
     assert result.commit_id
     assert result.author
@@ -25,9 +26,10 @@ def test_git_analyzer_returns_result():
 def test_git_analyzer_finds_shared_user_change():
     """
     Test 10: The git analyzer must find sample_repo/shared/user.py
-    as a changed file in the demo commit (HEAD).
+    as a changed file in the demo commit (nullable email change).
     """
-    result = analyze_commit()
+    commit_id = find_relevant_commit()
+    result = analyze_commit(commit_id)
     changed_normalized = [f.replace("\\", "/") for f in result.changed_files]
     assert any(
         "sample_repo/shared/user.py" in f for f in changed_normalized
@@ -35,14 +37,16 @@ def test_git_analyzer_finds_shared_user_change():
 
 
 def test_git_analyzer_diff_not_empty():
-    """Diff content should be non-empty for the HEAD commit."""
-    result = analyze_commit()
+    """Diff content should be non-empty for the demo commit."""
+    commit_id = find_relevant_commit()
+    result = analyze_commit(commit_id)
     assert result.diff.strip(), "Diff should not be empty"
 
 
 def test_git_analyzer_diff_contains_nullable_email():
-    """The diff for HEAD should show email becoming nullable."""
-    result = analyze_commit()
+    """The diff for the demo commit should show email becoming nullable."""
+    commit_id = find_relevant_commit()
+    result = analyze_commit(commit_id)
     assert "str | None" in result.diff or "str|None" in result.diff or "Optional[str]" in result.diff, \
         "Diff should contain nullable email type annotation"
 

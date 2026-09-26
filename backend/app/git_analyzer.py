@@ -18,6 +18,9 @@ from .models import GitAnalysisResult
 # The git repository being analysed is the repo root itself
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
+# The file that the demo scenario targets
+DEMO_TARGET_FILE = "sample_repo/shared/user.py"
+
 
 def _run_git(args: list[str], cwd: Path = REPO_ROOT) -> str:
     """
@@ -97,6 +100,29 @@ def get_diff(commit_id: str, cwd: Path = REPO_ROOT) -> str:
         return _run_git(["show", commit_id], cwd=cwd)
     except RuntimeError:
         return ""
+
+
+def find_relevant_commit(target_file: str = DEMO_TARGET_FILE, cwd: Path = REPO_ROOT) -> str:
+    """
+    Find the most recent commit that changed *target_file*.
+    This ensures POST /analyze always returns the demo scenario commit
+    (the nullable email change) even when more commits have been added after it.
+    Returns the full commit SHA.
+    Raises RuntimeError if no such commit is found.
+    """
+    result = subprocess.run(
+        ["git", "log", "--format=%H", "-n", "1", "--", target_file],
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        raise RuntimeError(
+            f"No commit found that changed '{target_file}'. "
+            "Ensure the demo commits have been made."
+        )
+    return result.stdout.strip()
 
 
 def analyze_commit(commit_id: str | None = None) -> GitAnalysisResult:

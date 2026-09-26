@@ -36,7 +36,7 @@ from .storage import (
     load_reviews,
     save_reviews,
 )
-from .git_analyzer import analyze_commit
+from .git_analyzer import analyze_commit, find_relevant_commit
 from .report_builder import run_pipeline
 
 
@@ -117,12 +117,18 @@ def analyze(request: Optional[AnalyzeRequest] = None) -> ImpactReport:
     """
     Run the full analysis pipeline for a commit.
 
-    If commit_id is not specified, HEAD is used.
+    If commit_id is not specified, uses the most recent commit that
+    changed sample_repo/shared/user.py (the demo scenario target).
     Returns the ImpactReport and saves it to data/impact_report.json.
     """
-    commit_id = (request.commit_id if request else None) or None
+    explicit_id = (request.commit_id if request else None) or None
 
     try:
+        if explicit_id:
+            commit_id = explicit_id
+        else:
+            # Default: find the most recent commit touching the demo target file
+            commit_id = find_relevant_commit()
         git_result = analyze_commit(commit_id)
     except RuntimeError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
