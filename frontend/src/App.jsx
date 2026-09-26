@@ -13,6 +13,8 @@ function getDecisionStyle(decision) {
       background: '#2a1f0f',
       color: '#fbbf24',
       fontWeight: '600',
+      padding: '10px 14px',
+      minWidth: '150px',
     }
   }
 
@@ -22,6 +24,8 @@ function getDecisionStyle(decision) {
       background: '#2a1111',
       color: '#f87171',
       fontWeight: '600',
+      padding: '10px 14px',
+      minWidth: '150px',
     }
   }
 
@@ -32,6 +36,8 @@ function getDecisionStyle(decision) {
       color: '#94a3b8',
       fontWeight: '600',
       opacity: 0.45,
+      padding: '10px 14px',
+      minWidth: '150px',
     }
   }
 
@@ -85,7 +91,8 @@ function App() {
     async function loadImpactReport() {
       try {
         const data = await fetchLatestImpact()
-       setDataSource('live')
+        setImpactReport(data)
+        setDataSource('live')
         console.log('Using backend impact report')
       } catch (error) {
         console.warn('Backend unavailable, using mock impact report')
@@ -98,13 +105,15 @@ function App() {
   const projectNodes = [
     {
       id: 'project',
-      position: { x: 80, y: 180 },
+      position: { x: 60, y: 220 },
       data: { label: 'novaHB Project' },
       style: {
         background: '#f8fafc',
         color: '#0f172a',
         border: '1px solid #cbd5e1',
         fontWeight: '600',
+        padding: '10px 16px',
+        minWidth: '140px',
       },
     },
     {
@@ -116,11 +125,13 @@ function App() {
         color: '#0f172a',
         border: '1px solid #cbd5e1',
         fontWeight: '600',
+        padding: '10px 16px',
+        minWidth: '140px',
       },
     },
     {
       id: 'batuhan',
-      position: { x: 680, y: 60 },
+      position: { x: 720, y: 70 },
       data: {
         label: `Batuhan — ${impactReport.routing[0].decision}`,
       },
@@ -128,7 +139,7 @@ function App() {
     },
     {
       id: 'db-expert',
-      position: { x: 680, y: 240 },
+      position: { x: 720, y: 260 },
       data: {
         label:
           reviewDecision === 'approved'
@@ -144,6 +155,8 @@ function App() {
               background: '#052e16',
               color: '#86efac',
               fontWeight: '600',
+              padding: '10px 14px',
+              minWidth: '150px',
             }
           : reviewDecision === 'changes_requested'
             ? {
@@ -151,12 +164,14 @@ function App() {
                 background: '#450a0a',
                 color: '#fca5a5',
                 fontWeight: '600',
+                padding: '10px 14px',
+                minWidth: '150px',
               }
             : getDecisionStyle(impactReport.routing[1].decision),
     },
     {
       id: 'notification-dev',
-      position: { x: 680, y: 420 },
+      position: { x: 720, y: 450 },
       data: {
         label: `Notification Developer — ${impactReport.routing[2].decision}`,
       },
@@ -168,24 +183,28 @@ function App() {
     ...projectNodes,
     {
       id: 'auth',
-      position: { x: 360, y: 300 },
+      position: { x: 360, y: 350 },
       data: { label: 'Auth Module' },
       style: {
         background: '#f8fafc',
         color: '#0f172a',
         border: '1px solid #cbd5e1',
         fontWeight: '600',
+        padding: '10px 16px',
+        minWidth: '140px',
       },
     },
     {
       id: 'hilal',
-      position: { x: 680, y: 330 },
+      position: { x: 720, y: 620 },
       data: { label: 'Hilal — Auth / Frontend' },
       style: {
         background: '#0f172a',
         color: '#93c5fd',
-        border: '1px solid #3b82f6',
+        border: '2px solid #3b82f6',
         fontWeight: '600',
+        padding: '10px 14px',
+        minWidth: '150px',
       },
     },
   ]
@@ -200,55 +219,34 @@ function App() {
         overflow: 'hidden',
       }}
     >
-      {/* HEADER */}
       <header
         style={{
-          height: '110px',
+          height: '130px',
           padding: '18px 24px',
           boxSizing: 'border-box',
           borderBottom: '1px solid #1f2937',
           background: '#0d1117',
         }}
       >
-        <h2
-          style={{
-            margin: 0,
-            fontSize: '22px',
-          }}
-        >
+        <h2 style={{ margin: 0, fontSize: '22px' }}>
           novaHB
         </h2>
 
         <p
           style={{
-            margin: '4px 0 12px',
+            margin: '4px 0 8px',
             color: '#94a3b8',
           }}
         >
           Route attention, not notifications.
         </p>
-        <div
-  style={{
-    display: 'inline-block',
-    marginBottom: '10px',
-    padding: '4px 8px',
-    borderRadius: '999px',
-    fontSize: '11px',
-    fontWeight: '700',
-    background: dataSource === 'live' ? '#052e16' : '#3f3f46',
-    color: dataSource === 'live' ? '#86efac' : '#d4d4d8',
-    border: dataSource === 'live'
-      ? '1px solid #166534'
-      : '1px solid #52525b',
-  }}
->
-  {dataSource === 'live' ? 'LIVE API' : 'MOCK DATA'}
-</div>
 
         <div
           style={{
             display: 'flex',
-            gap: '8px',
+            alignItems: 'center',
+            gap: '10px',
+            flexWrap: 'wrap',
           }}
         >
           <button
@@ -296,17 +294,35 @@ function App() {
           >
             3D
           </button>
+
+          <div
+            style={{
+              marginLeft: '6px',
+              padding: '4px 8px',
+              borderRadius: '999px',
+              fontSize: '11px',
+              fontWeight: '700',
+              background:
+                dataSource === 'live' ? '#052e16' : '#3f3f46',
+              color:
+                dataSource === 'live' ? '#86efac' : '#d4d4d8',
+              border:
+                dataSource === 'live'
+                  ? '1px solid #166534'
+                  : '1px solid #52525b',
+            }}
+          >
+            {dataSource === 'live' ? 'LIVE API' : 'MOCK DATA'}
+          </div>
         </div>
       </header>
 
-      {/* BODY */}
       <div
         style={{
-          height: 'calc(100vh - 110px)',
+          height: 'calc(100vh - 130px)',
           display: 'flex',
         }}
       >
-        {/* SIDEBAR */}
         <aside
           style={{
             width: '320px',
@@ -321,7 +337,6 @@ function App() {
             background: '#0d1117',
           }}
         >
-          {/* COMMIT */}
           <section
             style={{
               width: '100%',
@@ -332,12 +347,7 @@ function App() {
               padding: '12px',
             }}
           >
-            <div
-              style={{
-                fontSize: '12px',
-                color: '#94a3b8',
-              }}
-            >
+            <div style={{ fontSize: '12px', color: '#94a3b8' }}>
               Commit {impactReport.commit.id}
             </div>
 
@@ -390,7 +400,6 @@ function App() {
             </div>
           </section>
 
-          {/* ACTION */}
           <section
             style={{
               width: '100%',
@@ -445,7 +454,6 @@ function App() {
             </div>
           </section>
 
-          {/* REVIEW */}
           <section
             style={{
               width: '100%',
@@ -574,7 +582,6 @@ function App() {
             )}
           </section>
 
-          {/* SILENT */}
           <section
             style={{
               width: '100%',
@@ -620,7 +627,6 @@ function App() {
           </section>
         </aside>
 
-        {/* GRAPH */}
         <main
           style={{
             flex: 1,
@@ -642,7 +648,7 @@ function App() {
             }
             fitView
             fitViewOptions={{
-              padding: 0.2,
+              padding: 0.08,
             }}
           >
             <Background />
