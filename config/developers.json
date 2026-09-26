@@ -1,0 +1,62 @@
+[
+  {
+    "id": "hilal",
+    "name": "Hilal",
+    "role": "Frontend / Product Engineer",
+    "expertise": ["frontend", "auth", "react"],
+    "modules": ["auth"],
+    "current_task": "Implement profile settings and authentication state flow",
+    "current_task_files": ["auth/service.py"],
+    "current_task_status": "in_progress"
+  },
+  {
+    "id": "batuhan",
+    "name": "Batuhan",
+    "role": "Backend Engineer",
+    "expertise": ["billing", "python", "api"],
+    "modules": ["billing"],
+    "current_task": "Implement invoice retry logic and failed-payment recovery",
+    "current_task_files": ["billing/invoice.py"],
+    "current_task_status": "in_progress"
+  },
+  {
+    "id": "ayse",
+    "name": "Ayşe",
+    "role": "Backend Engineer",
+    "expertise": ["notifications", "email", "messaging"],
+    "modules": ["notifications"],
+    "current_task": "Improve notification fallback handling for users without contact preferences",
+    "current_task_files": ["notifications/email.py"],
+    "current_task_status": "in_progress"
+  },
+  {
+    "id": "emre",
+    "name": "Emre",
+    "role": "Database Engineer",
+    "expertise": ["database", "schema", "migrations"],
+    "modules": ["shared"],
+    "current_task": "Prepare user schema migration and backward compatibility checks",
+    "current_task_files": ["shared/user.py"],
+    "current_task_status": "in_progress"
+  },
+  {
+    "id": "selin",
+    "name": "Selin",
+    "role": "Security Engineer",
+    "expertise": ["security", "auth", "privacy"],
+    "modules": ["auth", "shared"],
+    "current_task": "Review account recovery authorization and sensitive-data exposure",
+    "current_task_files": ["auth/service.py"],
+    "current_task_status": "in_review"
+  },
+  {
+    "id": "mert",
+    "name": "Mert",
+    "role": "Platform Engineer",
+    "expertise": ["infrastructure", "deployment", "observability"],
+    "modules": ["platform"],
+    "current_task": "Add deployment health checks and service monitoring",
+    "current_task_files": ["platform/health.py"],
+    "current_task_status": "in_progress"
+  }
+]

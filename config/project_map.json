@@ -1,0 +1,29 @@
+{
+  "modules": [
+    {
+      "id": "shared-user",
+      "path": "sample_repo/shared/user.py",
+      "depends_on": []
+    },
+    {
+      "id": "billing",
+      "path": "sample_repo/billing/",
+      "depends_on": ["shared-user"]
+    },
+    {
+      "id": "notifications",
+      "path": "sample_repo/notifications/",
+      "depends_on": ["shared-user"]
+    },
+    {
+      "id": "auth",
+      "path": "sample_repo/auth/",
+      "depends_on": ["shared-user"]
+    },
+    {
+      "id": "platform",
+      "path": "sample_repo/platform/",
+      "depends_on": []
+    }
+  ]
+}
