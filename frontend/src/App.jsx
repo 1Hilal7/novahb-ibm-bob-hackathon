@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ReactFlow, Background, Controls } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './App.css'
+import Network3D from './Network3D'
 
 import mockImpactReport from './mockImpactReport'
 import {
@@ -624,17 +625,26 @@ function App() {
             Full Network
           </button>
 
-          <button
-            style={{
-              background: '#1f2937',
-              color: '#64748b',
-              border: '1px solid #374151',
-              padding: '7px 11px',
-              borderRadius: '6px',
-            }}
-          >
-            3D
-          </button>
+         <button
+  onClick={() => setViewMode('3d')}
+  style={{
+    background:
+      viewMode === '3d'
+        ? '#7c3aed'
+        : '#1f2937',
+    color:
+      viewMode === '3d'
+        ? 'white'
+        : '#94a3b8',
+    border: '1px solid #374151',
+    padding: '7px 11px',
+    borderRadius: '6px',
+    fontWeight: '600',
+    cursor: 'pointer',
+  }}
+>
+  3D
+</button>
 
           <button
             onClick={handleAnalyze}
@@ -1194,31 +1204,37 @@ function App() {
           }}
         >
           {hasAnalyzed ? (
-            <ReactFlow
-              className={
-                showResultHighlight
-                  ? 'analysis-highlight'
-                  : ''
-              }
-              nodes={
-                viewMode === 'full'
-                  ? fullNetworkNodes
-                  : projectNodes
-              }
-              edges={
-                viewMode === 'full'
-                  ? highlightedFullNetworkEdges
-                  : highlightedProjectEdges
-              }
-              fitView
-              fitViewOptions={{
-                padding: 0.08,
-              }}
-            >
-              <Background />
-              <Controls position="bottom-right" />
-            </ReactFlow>
-          ) : (
+  viewMode === '3d' ? (
+    <Network3D
+      impactReport={impactReport}
+    />
+  ) : (
+    <ReactFlow
+      className={
+        showResultHighlight
+          ? 'analysis-highlight'
+          : ''
+      }
+      nodes={
+        viewMode === 'full'
+          ? fullNetworkNodes
+          : projectNodes
+      }
+      edges={
+        viewMode === 'full'
+          ? highlightedFullNetworkEdges
+          : highlightedProjectEdges
+      }
+      fitView
+      fitViewOptions={{
+        padding: 0.08,
+      }}
+    >
+      <Background />
+      <Controls position="bottom-right" />
+    </ReactFlow>
+  )
+) : (
             <div
               style={{
                 height: '100%',
