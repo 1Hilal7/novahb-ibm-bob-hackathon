@@ -208,3 +208,62 @@ def test_review_invalid_decision_422():
     client.post("/analyze", json={})
     response = client.post("/review/emre", json={"decision": "maybe"})
     assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Interactive notification API
+# ---------------------------------------------------------------------------
+
+def test_notify_batuhan_returns_four_questions():
+    """ACTION developer receives four questions using the public API contract."""
+    client.post("/analyze", json={})
+
+    response = client.get("/notify/batuhan")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["developer_id"] == "batuhan"
+    assert data["decision"] == "ACTION"
+    assert "questions" in data
+    assert len(data["questions"]) == 4
+
+    for question in data["questions"]:
+        assert question["option_id"]
+        assert question["label"]
+        assert question["answer"]
+
+
+def test_notify_batuhan_ask_returns_answer():
+    """A valid notification option_id returns its focused answer."""
+    client.post("/analyze", json={})
+
+    package = client.get("/notify/batuhan")
+    assert package.status_code == 200
+
+    option_id = package.json()["questions"][0]["option_id"]
+
+    response = client.post(
+        "/notify/batuhan/ask",
+        json={"option_id": option_id},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["developer_id"] == "batuhan"
+    assert data["option_id"] == option_id
+    assert data["decision"] == "ACTION"
+    assert data["answer"]
+
+
+def test_notify_invalid_option_rejected():
+    """Unknown notification option IDs are rejected with 422."""
+    client.post("/analyze", json={})
+
+    response = client.post(
+        "/notify/batuhan/ask",
+        json={"option_id": "not-a-real-option"},
+    )
+
+    assert response.status_code == 422

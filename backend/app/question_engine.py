@@ -47,7 +47,7 @@ def _build_action_questions(
             answer=(
                 f"**Commit `{commit_short}` — {author}**\n\n"
                 f"{change_summary}\n\n"
-                f"**Etkilenen dosyalar:** {', '.join(report.commit.summary.splitlines()[:1])}\n"
+                f"**Etkilenen dosyalar:** {', '.join(report.semantic_change.evidence)}\n"
                 f"**Kritiklik:** {report.semantic_change.criticality.value.upper()}\n"
                 f"**Etkilenen alanlar:** {', '.join(report.semantic_change.domains)}\n\n"
                 f"Bu değişiklik doğrudan senin görevini etkiliyor."

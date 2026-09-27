@@ -555,6 +555,7 @@ function App() {
   function selectRoute(route) {
     setSelectedDetail({
       type: 'Developer',
+      developerId: route.developer_id,
       title: formatDeveloperName(route.developer_id),
       status: route.decision,
       reason: route.reason,
@@ -845,7 +846,7 @@ function NotificationPanel({ developerId }) {
     fetchNotification(developerId)
       .then((data) => {
         if (!cancelled) {
-          setOptions(data.options ?? [])
+          setOptions(data.questions ?? [])
           setStatus('idle')
         }
       })
@@ -899,16 +900,16 @@ function NotificationPanel({ developerId }) {
       <h4 className="notif-heading">AI Assistant</h4>
       <ul className="notif-list">
         {options.map((opt) => {
-          const ans = answers[opt.id]
+          const ans = answers[opt.option_id]
           return (
-            <li key={opt.id} className="notif-item">
+            <li key={opt.option_id} className="notif-item">
               <button
                 type="button"
                 className={`notif-btn${ans ? ' notif-btn--active' : ''}`}
-                onClick={() => handleSelect(opt.id)}
+                onClick={() => handleSelect(opt.option_id)}
                 disabled={ans?.status === 'loading'}
               >
-                {opt.label ?? opt.question ?? opt.id}
+                {opt.label ?? opt.question ?? opt.option_id}
               </button>
               {ans && (
                 <div className={`notif-answer notif-answer--${ans.status}`}>
