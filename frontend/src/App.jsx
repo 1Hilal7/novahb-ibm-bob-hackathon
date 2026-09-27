@@ -172,17 +172,43 @@ function App() {
     affectedModules.find((module) => module.status === 'affected') ?? affectedModules[0]
 
   useEffect(() => {
+    let cancelled = false
+
     async function loadImpactReport() {
       try {
         const data = await fetchLatestImpact()
-        setImpactReport(data)
-        setDataSource('live')
-      } catch (error) {
-        console.warn('Backend unavailable, using mock impact report')
+
+        if (!cancelled) {
+          setImpactReport(data)
+          setDataSource('live')
+        }
+
+        return
+      } catch (latestError) {
+        console.warn(
+          'No latest impact report yet; generating a fresh live analysis'
+        )
+      }
+
+      try {
+        const data = await analyzeChange()
+
+        if (!cancelled) {
+          setImpactReport(data)
+          setDataSource('live')
+        }
+      } catch (analyzeError) {
+        console.warn(
+          'Live backend unavailable; using mock impact report'
+        )
       }
     }
 
     loadImpactReport()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   async function handleReview(decision) {
