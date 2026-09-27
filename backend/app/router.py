@@ -266,9 +266,12 @@ def _build_silent_reason(
 ) -> str:
     """Build a human-readable reason for a SILENT decision."""
     if not dev_affected_modules:
+        task_preview = developer.current_task[:60]
+        if len(developer.current_task) > 60:
+            task_preview += "..."
         return (
             f"No modules owned by {developer.name} are affected by this change. "
-            f"Current task ({developer.current_task[:60]}...) has no dependency "
+            f"Current task ({task_preview}) has no dependency "
             f"on the User.email field."
         )
 

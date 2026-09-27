@@ -36,13 +36,13 @@ const mockImpactReport = {
         'Add fallback behavior and update missing-email invoice tests',
     },
     {
-      developer_id: 'db-expert',
+      developer_id: 'emre',
       decision: 'REVIEW_REQUIRED',
       reason: 'Shared schema behavior changed',
       recommended_action: 'Review backward compatibility',
     },
     {
-      developer_id: 'notification-dev',
+      developer_id: 'ayse',
       decision: 'SILENT',
       reason: 'Existing null handling makes this change safe',
       recommended_action: null,

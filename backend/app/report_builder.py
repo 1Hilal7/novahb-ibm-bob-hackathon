@@ -37,6 +37,7 @@ def run_pipeline(git_result: GitAnalysisResult) -> ImpactReport:
     semantic_change = detect_semantic_change(
         changed_files=git_result.changed_files,
         diff=git_result.diff,
+        commit_message=git_result.message,
     )
 
     # Step 2: determine which modules are affected and how

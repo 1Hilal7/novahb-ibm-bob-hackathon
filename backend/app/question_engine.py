@@ -246,7 +246,7 @@ def _build_silent_questions(
             answer=(
                 f"**Aktif sorumlular:**\n\n"
                 + "\n".join(
-                    f"- **{r.developer_id}** → `{r.decision.value}`: {r.reason[:80]}..."
+                    f"- **{r.developer_id}** → `{r.decision.value}`: {r.reason[:80]}{'...' if len(r.reason) > 80 else ''}"
                     for r in report.routing
                     if r.decision.value != "SILENT"
                 )

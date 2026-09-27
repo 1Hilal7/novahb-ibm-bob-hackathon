@@ -197,7 +197,10 @@ function App() {
         }
       } catch {
         if (!cancelled) {
-          setBackendError('Live backend is unreachable. No impact report could be loaded.')
+          // Backend erişilemez — mock veriyle devam et
+          setImpactReport(mockImpactReport)
+          setDataSource('mock')
+          setBackendError('Live backend is unreachable. Showing demo data.')
         }
       }
     }
@@ -208,9 +211,10 @@ function App() {
   }, [])
 
   async function handleReview(decision) {
+    if (!reviewRoute) return
     try {
       await submitReview(reviewRoute.developer_id, decision)
-    } catch (error) {
+    } catch {
       console.warn('Backend unavailable, applying review locally')
     }
 
@@ -240,7 +244,7 @@ function App() {
   }
 
   const projectNodes = useMemo(() => {
-    if (!actionRoute || !reviewRoute || !notificationSilentRoute) return []
+    if (!impactReport || !actionRoute || !reviewRoute || !notificationSilentRoute) return []
 
     const moduleName = affectedPrimary?.module ?? 'affected module'
     const moduleStatus = affectedPrimary?.status ?? 'affected'
@@ -254,14 +258,14 @@ function App() {
           label: (
             <GraphNodeLabel
               eyebrow="CODE CHANGE"
-              title={impactReport.commit?.summary ?? 'Semantic code change'}
-              tag={(impactReport.commit?.id ?? '').slice(0, 7)}
+              title={impactReport?.commit?.summary ?? 'Semantic code change'}
+              tag={(impactReport?.commit?.id ?? '').slice(0, 7)}
               tone="change"
             />
           ),
           detail: {
             type: 'Code change',
-            title: impactReport.commit?.summary ?? 'Semantic code change',
+            title: impactReport?.commit?.summary ?? 'Semantic code change',
             status: semanticChange.criticality,
             reason: semanticChange.summary,
             meta: semanticChange.evidence?.[0],
@@ -476,14 +480,14 @@ function App() {
           label: (
             <GraphNodeLabel
               eyebrow="CODE CHANGE"
-              title={impactReport.commit?.summary ?? 'Semantic change'}
-              tag={(impactReport.commit?.id ?? '').slice(0, 7)}
+              title={impactReport?.commit?.summary ?? 'Semantic change'}
+              tag={(impactReport?.commit?.id ?? '').slice(0, 7)}
               tone="change"
             />
           ),
           detail: {
             type: 'Code change',
-            title: impactReport.commit?.summary,
+            title: impactReport?.commit?.summary,
             status: semanticChange.criticality,
             reason: semanticChange.summary,
             meta: semanticChange.evidence?.[0],
@@ -641,8 +645,8 @@ function App() {
           >
             <div className="commit-line">
               <span className="commit-glyph">⌁</span>
-              <code>{(impactReport.commit?.id ?? '').slice(0, 8)}</code>
-              <span>{impactReport.commit?.summary}</span>
+              <code>{(impactReport?.commit?.id ?? '').slice(0, 8)}</code>
+              <span>{impactReport?.commit?.summary}</span>
             </div>
 
             <div className="semantic-box">
@@ -773,7 +777,7 @@ function App() {
             )}
 
             <div className="graph-stage">
-              {hasAnalyzed ? (
+              {hasAnalyzed && impactReport ? (
                 viewMode === '3d' ? (
                   <Network3D impactReport={impactReport} />
                 ) : (
