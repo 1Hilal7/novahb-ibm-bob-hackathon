@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import {
   Background,
   Controls,
@@ -14,6 +14,8 @@ import {
   analyzeChange,
   fetchLatestImpact,
   submitReview,
+  fetchNotification,
+  submitNotificationAnswer,
 } from './api'
 
 const DECISION_META = {
@@ -135,24 +137,23 @@ function RouteCard({ route, onSelect }) {
 function App() {
   const [reviewDecision, setReviewDecision] = useState(null)
   const [viewMode, setViewMode] = useState('project')
-  const [impactReport, setImpactReport] = useState(mockImpactReport)
+  const [impactReport, setImpactReport] = useState(null)
   const [dataSource, setDataSource] = useState('mock')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [hasAnalyzed, setHasAnalyzed] = useState(true)
   const [showResultHighlight, setShowResultHighlight] = useState(false)
   const [selectedDetail, setSelectedDetail] = useState(null)
+  const [backendError, setBackendError] = useState(null)
 
   const routingItems = impactReport?.routing ?? []
   const affectedModules = impactReport?.affected_modules ?? []
   const semanticChange = impactReport?.semantic_change ?? {}
 
   const actionRoute =
-    routingItems.find((item) => item.decision === 'ACTION') ??
-    mockImpactReport.routing.find((item) => item.decision === 'ACTION')
+    routingItems.find((item) => item.decision === 'ACTION') ?? null
 
   const reviewRoute =
-    routingItems.find((item) => item.decision === 'REVIEW_REQUIRED') ??
-    mockImpactReport.routing.find((item) => item.decision === 'REVIEW_REQUIRED')
+    routingItems.find((item) => item.decision === 'REVIEW_REQUIRED') ?? null
 
   const silentRoutes = routingItems.filter((item) => item.decision === 'SILENT')
   const notificationSilentRoute =
@@ -161,7 +162,7 @@ function App() {
       return text.includes('notification') || item.developer_id === 'ayse'
     }) ??
     silentRoutes[0] ??
-    mockImpactReport.routing.find((item) => item.decision === 'SILENT')
+    null
 
   const actionCount = routingItems.filter((item) => item.decision === 'ACTION').length
   const reviewCount = routingItems.filter((item) => item.decision === 'REVIEW_REQUIRED').length
@@ -177,38 +178,33 @@ function App() {
     async function loadImpactReport() {
       try {
         const data = await fetchLatestImpact()
-
         if (!cancelled) {
           setImpactReport(data)
           setDataSource('live')
+          setBackendError(null)
         }
-
         return
-      } catch (latestError) {
-        console.warn(
-          'No latest impact report yet; generating a fresh live analysis'
-        )
+      } catch {
+        // no cached report yet — try a fresh analysis
       }
 
       try {
         const data = await analyzeChange()
-
         if (!cancelled) {
           setImpactReport(data)
           setDataSource('live')
+          setBackendError(null)
         }
-      } catch (analyzeError) {
-        console.warn(
-          'Live backend unavailable; using mock impact report'
-        )
+      } catch {
+        if (!cancelled) {
+          setBackendError('Live backend is unreachable. No impact report could be loaded.')
+        }
       }
     }
 
     loadImpactReport()
 
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [])
 
   async function handleReview(decision) {
@@ -227,16 +223,14 @@ function App() {
     setHasAnalyzed(false)
     setReviewDecision(null)
     setSelectedDetail(null)
+    setBackendError(null)
 
     try {
       const data = await analyzeChange()
       setImpactReport(data)
       setDataSource('live')
-    } catch (error) {
-      console.warn('Backend unavailable, using mock analysis')
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      setImpactReport(mockImpactReport)
-      setDataSource('mock')
+    } catch {
+      setBackendError('Live backend is unreachable. Analysis could not be completed.')
     } finally {
       setIsAnalyzing(false)
       setHasAnalyzed(true)
@@ -246,6 +240,8 @@ function App() {
   }
 
   const projectNodes = useMemo(() => {
+    if (!actionRoute || !reviewRoute || !notificationSilentRoute) return []
+
     const moduleName = affectedPrimary?.module ?? 'affected module'
     const moduleStatus = affectedPrimary?.status ?? 'affected'
 
@@ -312,6 +308,7 @@ function App() {
           ),
           detail: {
             type: 'Developer',
+            developerId: actionRoute.developer_id,
             title: formatDeveloperName(actionRoute.developer_id),
             status: actionRoute.decision,
             reason: actionRoute.reason,
@@ -347,6 +344,7 @@ function App() {
           ),
           detail: {
             type: 'Developer',
+            developerId: reviewRoute.developer_id,
             title: formatDeveloperName(reviewRoute.developer_id),
             status: reviewRoute.decision,
             reason: reviewRoute.reason,
@@ -371,6 +369,7 @@ function App() {
           ),
           detail: {
             type: 'Developer',
+            developerId: notificationSilentRoute.developer_id,
             title: formatDeveloperName(notificationSilentRoute.developer_id),
             status: notificationSilentRoute.decision,
             reason: notificationSilentRoute.reason,
@@ -458,6 +457,7 @@ function App() {
         ),
         detail: {
           type: 'Developer',
+          developerId: route.developer_id,
           title: formatDeveloperName(route.developer_id),
           status: route.decision,
           reason: route.reason,
@@ -620,6 +620,14 @@ function App() {
           </button>
         </div>
       </header>
+
+      {backendError && (
+        <div className="backend-error-banner" role="alert">
+          <span className="backend-error-icon">⚠</span>
+          <span>{backendError}</span>
+          <button type="button" className="backend-error-dismiss" onClick={() => setBackendError(null)} aria-label="Dismiss">×</button>
+        </div>
+      )}
 
       <div className="workspace">
         <aside className={`intelligence-rail ${isAnalyzing ? 'dimmed' : ''}`}>
@@ -806,6 +814,9 @@ function App() {
                     <p>{selectedDetail.recommendedAction}</p>
                   </div>
                 )}
+                {selectedDetail.type === 'Developer' && selectedDetail.developerId && (
+                  <NotificationPanel developerId={selectedDetail.developerId} />
+                )}
               </aside>
             )}
           </section>
@@ -815,4 +826,100 @@ function App() {
   )
 }
 
+function NotificationPanel({ developerId }) {
+  const [status, setStatus] = useState('idle') // 'idle' | 'loading' | 'error'
+  const [options, setOptions] = useState([])
+  const [answers, setAnswers] = useState({}) // { [option_id]: { status, text } }
+
+  useEffect(() => {
+    if (!developerId) return
+    let cancelled = false
+    setStatus('loading')
+    setOptions([])
+    setAnswers({})
+
+    fetchNotification(developerId)
+      .then((data) => {
+        if (!cancelled) {
+          setOptions(data.options ?? [])
+          setStatus('idle')
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setStatus('error')
+      })
+
+    return () => { cancelled = true }
+  }, [developerId])
+
+  const handleSelect = useCallback(async (optionId) => {
+    setAnswers((prev) => ({ ...prev, [optionId]: { status: 'loading', text: null } }))
+    try {
+      const data = await submitNotificationAnswer(developerId, optionId)
+      setAnswers((prev) => ({
+        ...prev,
+        [optionId]: { status: 'done', text: data.answer ?? data.message ?? JSON.stringify(data) },
+      }))
+    } catch {
+      setAnswers((prev) => ({
+        ...prev,
+        [optionId]: { status: 'error', text: 'Failed to get an answer. Please try again.' },
+      }))
+    }
+  }, [developerId])
+
+  if (status === 'loading') {
+    return (
+      <div className="notif-panel">
+        <div className="notif-spinner" aria-label="Loading notifications…">
+          <span className="notif-spinner-dot" />
+          <span className="notif-spinner-dot" />
+          <span className="notif-spinner-dot" />
+        </div>
+      </div>
+    )
+  }
+
+  if (status === 'error') {
+    return (
+      <div className="notif-panel">
+        <p className="notif-error">Failed to load notifications. Please try again.</p>
+      </div>
+    )
+  }
+
+  if (options.length === 0) return null
+
+  return (
+    <div className="notif-panel">
+      <h4 className="notif-heading">AI Assistant</h4>
+      <ul className="notif-list">
+        {options.map((opt) => {
+          const ans = answers[opt.id]
+          return (
+            <li key={opt.id} className="notif-item">
+              <button
+                type="button"
+                className={`notif-btn${ans ? ' notif-btn--active' : ''}`}
+                onClick={() => handleSelect(opt.id)}
+                disabled={ans?.status === 'loading'}
+              >
+                {opt.label ?? opt.question ?? opt.id}
+              </button>
+              {ans && (
+                <div className={`notif-answer notif-answer--${ans.status}`}>
+                  {ans.status === 'loading' && <span className="notif-answer-loading">Thinking…</span>}
+                  {ans.status === 'error' && <span>{ans.text}</span>}
+                  {ans.status === 'done' && <span>{ans.text}</span>}
+                </div>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
+export { NotificationPanel }
 export default App
