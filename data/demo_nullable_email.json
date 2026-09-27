@@ -1,0 +1,10 @@
+{
+  "commit_id": "fafa0ce0f7d94cc3f0f5bb3a79fe70b66d2fa7d7",
+  "author": "Batuhan",
+  "message": "feat: allow nullable user email",
+  "changed_files": [
+    ".gitignore",
+    "sample_repo/shared/user.py"
+  ],
+  "diff": "diff --git a/.gitignore b/.gitignore\nnew file mode 100644\nindex 0000000..17e95d5\n--- /dev/null\n+++ b/.gitignore\n@@ -0,0 +1,17 @@\n+__pycache__/\n+*.pyc\n+*.pyo\n+*.pyd\n+.Python\n+*.egg-info/\n+dist/\n+build/\n+.env\n+.venv\n+venv/\n+env/\n+.DS_Store\n+*.log\n+.pytest_cache/\n+.coverage\n+htmlcov/\ndiff --git a/sample_repo/shared/user.py b/sample_repo/shared/user.py\nindex 1073d0a..b773926 100644\n--- a/sample_repo/shared/user.py\n+++ b/sample_repo/shared/user.py\n@@ -1,7 +1,8 @@\n \"\"\"\n Shared User model.\n \n-Baseline: email is required (non-nullable str).\n+DEMO CHANGE: email is now nullable (str | None).\n+Previously email was a required str field.\n This file is depended upon by auth, billing, and notifications modules.\n \"\"\"\n from dataclasses import dataclass\n@@ -11,7 +12,7 @@ from dataclasses import dataclass\n class User:\n     id: int\n     name: str\n-    email: str  # required — must always be present\n+    email: str | None  # nullable — email may not be provided\n \n     def display_name(self) -> str:\n         return f\"{self.name} <{self.email}>\"\n"
+}

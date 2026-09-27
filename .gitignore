@@ -15,5 +15,6 @@ env/
 .pytest_cache/
 .coverage
 htmlcov/
-data/
+data/*
+!data/demo_nullable_email.json
 .env
