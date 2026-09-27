@@ -22,10 +22,12 @@ For every developer, novaHB produces one of three routing decisions:
 
 ## Live Demo
 
-**Application:**  
+**Application:**
+
 https://novahb.vercel.app
 
-**Backend API:**  
+**Backend API:**
+
 https://novahb-api.onrender.com
 
 > The backend is hosted on Render's free tier, so the first request after a period of inactivity may take longer while the service wakes up.
