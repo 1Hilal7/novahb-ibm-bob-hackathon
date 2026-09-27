@@ -57,6 +57,9 @@ app = FastAPI(
 # ---------------------------------------------------------------------------
 # CORS — allow frontend dev server (Vite default port)
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# CORS — local development + production frontend
+# ---------------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -64,6 +67,7 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
+        "https://novahb.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
